@@ -117,7 +117,6 @@ revoke all on function app.reabrir_si_precuenta(public.ordenes) from public;
 create or replace function app.validar_modificadores(p_producto public.productos, p_elegidos jsonb, p_fecha date)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$

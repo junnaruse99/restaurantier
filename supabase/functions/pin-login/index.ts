@@ -12,7 +12,6 @@
 // La verificación del PIN, el conteo de intentos (5 → bloqueo de 15 min) y la vigencia de 12 h
 // viven en la base (pin_login_verificar / pin_login_registrar_sesion), no aquí.
 
-import { createClient, type Session } from "@supabase/supabase-js";
 import {
   cabecerasCors,
   ipCliente,
@@ -20,10 +19,7 @@ import {
   LimitadorSolicitudes,
   payloadJwt,
 } from "../_shared/http.ts";
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+import { clienteAdmin, crearSesion, sesionPublica } from "../_shared/sesion.ts";
 
 const FORMATO_TOKEN = /^wkd_[0-9a-f]{64}$/;
 const FORMATO_CODIGO = /^[0-9A-Za-z]{3,12}$/;
@@ -39,36 +35,7 @@ const ESTADO_POR_ERROR: Record<string, number> = {
 // 20 intentos por minuto por IP y dispositivo.
 const limitador = new LimitadorSolicitudes(20, 60_000);
 
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-
-/**
- * Obtiene una sesión de Supabase Auth con un enlace mágico generado por el admin y canjeado aquí
- * mismo (nunca se envía por correo). Cada enlace nuevo invalida el anterior del mismo usuario, así
- * que dos ingresos simultáneos (dos equipos o un doble toque) pueden pisarse: se reintenta.
- */
-async function crearSesion(email: string): Promise<Session> {
-  const publico = createClient(SUPABASE_URL, ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  let ultimoError: unknown;
-  for (let intento = 0; intento < 3; intento++) {
-    const { data: enlace, error: errorEnlace } = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-    });
-    if (errorEnlace) throw errorEnlace;
-    const { data: canje, error: errorCanje } = await publico.auth.verifyOtp({
-      token_hash: enlace.properties.hashed_token,
-      type: "magiclink",
-    });
-    if (!errorCanje && canje.session) return canje.session;
-    ultimoError = errorCanje ?? new Error("Supabase Auth no devolvió sesión");
-    await new Promise((r) => setTimeout(r, 100 + Math.random() * 200));
-  }
-  throw ultimoError;
-}
+const admin = clienteAdmin();
 
 interface Verificacion {
   ok: boolean;
@@ -137,7 +104,7 @@ Deno.serve(async (req) => {
     }
 
     // 2. Sesión de Supabase Auth para el usuario.
-    const session = await crearSesion(verificacion.email!);
+    const session = await crearSesion(admin, verificacion.email!);
 
     // 3. Ligar la sesión al dispositivo por 12 h. Si falla, se cierra la sesión recién creada.
     const sessionId = payloadJwt(session.access_token).session_id;
@@ -153,13 +120,7 @@ Deno.serve(async (req) => {
     }
 
     return json(req, 200, {
-      session: {
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-        expires_at: session.expires_at,
-        expires_in: session.expires_in,
-        token_type: session.token_type,
-      },
+      session: sesionPublica(session),
       usuario: { id: verificacion.user_id, nombre_visible: verificacion.nombre_visible },
       dispositivo_id: verificacion.dispositivo_id,
       local_id: verificacion.local_id,

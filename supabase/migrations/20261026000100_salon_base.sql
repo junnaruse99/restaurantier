@@ -28,7 +28,6 @@ grant execute on function app.fallar(integer, text, text) to authenticated, serv
 create or replace function app.exigir_permiso(p_local_id uuid, p_permiso text)
 returns void
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$

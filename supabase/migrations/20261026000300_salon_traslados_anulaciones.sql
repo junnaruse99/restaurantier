@@ -348,7 +348,6 @@ revoke all on function app.aplicar_anulacion(uuid) from public;
 create or replace function app.validar_motivo(p_motivo_codigo text, p_motivo_texto text)
 returns void
 language plpgsql
-immutable
 set search_path = ''
 as $$
 begin
