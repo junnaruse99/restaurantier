@@ -1,0 +1,35 @@
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+coverage/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# PWA generada en el build
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/swe-worker-*.js
+
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+supabase/.temp/
+supabase/.branches/
+supabase/signing_keys.json
+
+# Agente de impresión
+apps/print-agent/data/
+
+# Pruebas E2E
+test-results/
+playwright-report/
+
+.DS_Store
+*.log
+supabase/functions/.certs/

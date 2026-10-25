@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+  # Valores públicos del stack local de `supabase start`.
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+
+jobs:
+  calidad:
+    name: Formato, lint, tipos, pruebas y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  base-de-datos:
+    name: Migraciones, RLS, integración y E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Levantar Supabase local (migraciones + semillas)
+        run: >-
+          pnpm exec supabase start
+          -x studio,imgproxy,vector,logflare,supavisor,mailpit,postgres-meta,storage-api,realtime
+
+      - name: Lint de la base (plpgsql_check)
+        run: pnpm exec supabase db lint --level warning --fail-on warning --schema public,app
+
+      - name: Pruebas pgTAP (RLS, auditoría, pin-login, semillas)
+        run: pnpm exec supabase test db
+
+      - name: Integración de pin-login
+        run: pnpm test:integracion
+
+      - name: E2E (Playwright, perfiles tablet y desktop)
+        run: |
+          pnpm --filter @warike/web build
+          pnpm --filter @warike/web exec playwright install --with-deps chromium
+          pnpm --filter @warike/web e2e
+
+      - name: Reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+      - name: Logs de Supabase
+        if: failure()
+        run: |
+          docker logs supabase_edge_runtime_warike-pos 2>&1 | tail -100 || true
+          docker logs supabase_auth_warike-pos 2>&1 | tail -50 || true

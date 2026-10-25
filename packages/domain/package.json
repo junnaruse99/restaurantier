@@ -1,0 +1,19 @@
+{
+  "name": "@warike/domain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cálculos puros: precios, IGV, redondeo, descuentos, división de cuentas y fecha operativa",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.12",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@warike/print-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Agente local de impresión ESC/POS y relevo LAN (fase 1)",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.15",
+    "vitest": "^4.1.12"
+  }
+}
