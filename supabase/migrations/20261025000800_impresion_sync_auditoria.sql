@@ -41,6 +41,14 @@ create table public.outbox_recibidos (
 create trigger print_jobs_updated_at before update on public.print_jobs
   for each row execute function app.set_updated_at();
 
+-- Cola de impresión y registro de deduplicación: sin borrado físico. Borrar outbox_recibidos
+-- permitiría reaplicar mutaciones offline. No llevan trigger de auditoría: ya son un registro y
+-- print_jobs cambia de estado en cada impresión (DECISIONS D-020).
+create trigger print_jobs_sin_borrado before delete on public.print_jobs
+  for each row execute function app.prohibir_borrado();
+create trigger outbox_recibidos_sin_borrado before delete on public.outbox_recibidos
+  for each row execute function app.prohibir_borrado();
+
 -- -----------------------------------------------------------------------------
 -- Bitácora de auditoría append-only (§5.8, §14.7). Retención de 5 años.
 -- -----------------------------------------------------------------------------

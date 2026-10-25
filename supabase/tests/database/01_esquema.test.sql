@@ -92,9 +92,9 @@ select is(
 );
 
 select ok(
-  not has_function_privilege('authenticated', 'public.pin_login_verificar(text, text, text, inet)', 'EXECUTE')
-  and not has_function_privilege('authenticated', 'public.pin_login_registrar_sesion(uuid, uuid, uuid, inet)', 'EXECUTE')
-  and has_function_privilege('service_role', 'public.pin_login_verificar(text, text, text, inet)', 'EXECUTE'),
+  not has_function_privilege('authenticated', 'public.pin_login_verificar(text, text, text, text)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.pin_login_registrar_sesion(uuid, uuid, uuid, text)', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.pin_login_verificar(text, text, text, text)', 'EXECUTE'),
   'las funciones de pin-login son exclusivas de service_role'
 );
 
@@ -111,14 +111,15 @@ select is(
   (select array_agg(t order by t)
    from unnest(array[
      'ordenes', 'orden_items', 'anulaciones', 'descuentos_aplicados', 'pagos', 'comprobantes', 'movimientos_caja',
-     'sesiones_caja', 'productos', 'mesas', 'usuarios_perfil', 'user_local_roles'
+     'sesiones_caja', 'productos', 'mesas', 'usuarios_perfil', 'user_local_roles', 'comandas', 'mesa_uniones',
+     'traslados_mesa', 'comprobante_items'
    ]) as t
    where not exists (
      select 1 from pg_trigger tg
      where tg.tgrelid = ('public.' || t)::regclass and tg.tgname = 'auditoria' and not tg.tgisinternal
    )),
   null,
-  'las tablas exigidas por §5.8 tienen trigger de auditoría'
+  'las tablas exigidas por §5.8 (y las demás transaccionales) tienen trigger de auditoría'
 );
 
 select is(
@@ -126,7 +127,8 @@ select is(
    from unnest(array[
      'ordenes', 'orden_items', 'comandas', 'anulaciones', 'traslados_mesa', 'descuentos_aplicados', 'mesa_uniones',
      'cuentas_empleado', 'liquidaciones_empleado', 'sesiones_caja', 'cortes_caja', 'movimientos_caja', 'pagos',
-     'transacciones_pos', 'comprobantes', 'comprobante_items', 'bajas', 'empleados', 'series_cpe'
+     'transacciones_pos', 'comprobantes', 'comprobante_items', 'bajas', 'empleados', 'series_cpe', 'print_jobs',
+     'outbox_recibidos'
    ]) as t
    where not exists (
      select 1 from pg_trigger tg

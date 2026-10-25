@@ -26,10 +26,10 @@ interface RespuestaPinLogin {
   sesion_expira_at?: string;
 }
 
-async function pinLogin(cuerpo: Record<string, unknown>) {
+async function pinLogin(cuerpo: Record<string, unknown>, cabeceras: Record<string, string> = {}) {
   const res = await fetch(PIN_LOGIN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cabeceras },
     body: JSON.stringify(cuerpo),
   });
   return { status: res.status, body: (await res.json()) as RespuestaPinLogin };
@@ -107,6 +107,23 @@ describe("pin-login", () => {
     // Un inicio correcto reinicia el contador.
     const ok = await pinLogin({ device_token: token, codigo: CAJERO.codigo, pin: CAJERO.pin });
     expect(ok.status).toBe(200);
+  });
+
+  it("una cabecera X-Forwarded-For mal formada no hace fallar el ingreso", async () => {
+    for (const xff of ["dead", "1.2.3.4:5678", "no-es-una-ip"]) {
+      const { status } = await pinLogin(
+        { device_token: token, codigo: MOZO.codigo, pin: MOZO.pin },
+        { "X-Forwarded-For": xff },
+      );
+      expect(status, `X-Forwarded-For: ${xff}`).toBe(200);
+    }
+  });
+
+  it("dos ingresos simultáneos del mismo usuario obtienen sesión", async () => {
+    const respuestas = await Promise.all(
+      [1, 2, 3].map(() => pinLogin({ device_token: token, codigo: MOZO.codigo, pin: MOZO.pin })),
+    );
+    expect(respuestas.map((r) => r.status)).toEqual([200, 200, 200]);
   });
 
   it("no permite que un admin entre con PIN (requiere MFA)", async () => {

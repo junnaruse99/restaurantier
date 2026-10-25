@@ -32,6 +32,40 @@ as $$
 $$;
 revoke all on function app.pin_es_valido(text) from public;
 
+-- La IP llega en cabeceras que controla el cliente: si no es una IP válida se guarda null en vez de
+-- hacer fallar el inicio de sesión.
+create or replace function app.a_inet(p_texto text)
+returns inet
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  return p_texto::inet;
+exception
+  when others then
+    return null;
+end;
+$$;
+revoke all on function app.a_inet(text) from public;
+
+-- Un local donde el usuario actual administra usuarios y p_user tiene algún rol; null si no hay.
+create or replace function app.local_donde_administro(p_user uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select ulr.local_id
+  from public.user_local_roles ulr
+  where ulr.user_id = p_user
+    and ulr.local_id in (select app.locales_con_permiso('gestionar_usuarios'))
+  order by ulr.local_id
+  limit 1
+$$;
+revoke all on function app.local_donde_administro(uuid) from public;
+
 -- -----------------------------------------------------------------------------
 -- Cierre de sesiones de Supabase Auth ligadas a sesiones PIN expiradas o revocadas.
 -- Al borrar auth.sessions, el refresh token deja de servir y el usuario debe volver a entrar.
@@ -122,14 +156,8 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_local uuid;
+  v_local uuid := app.local_donde_administro(p_user_id);
 begin
-  select ulr.local_id into v_local
-  from public.user_local_roles ulr
-  where ulr.user_id = p_user_id
-    and ulr.local_id in (select app.locales_con_permiso('gestionar_usuarios'))
-  limit 1;
-
   if v_local is null then
     raise exception 'No tiene permiso para definir el PIN de este usuario'
       using errcode = 'insufficient_privilege';
@@ -161,14 +189,8 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_local uuid;
+  v_local uuid := app.local_donde_administro(p_user_id);
 begin
-  select ulr.local_id into v_local
-  from public.user_local_roles ulr
-  where ulr.user_id = p_user_id
-    and ulr.local_id in (select app.locales_con_permiso('gestionar_usuarios'))
-  limit 1;
-
   if v_local is null then
     raise exception 'No tiene permiso para desbloquear a este usuario' using errcode = 'insufficient_privilege';
   end if;
@@ -190,7 +212,7 @@ create or replace function public.pin_login_verificar(
   p_device_token text,
   p_codigo text,
   p_pin text,
-  p_ip inet default null
+  p_ip text default null
 )
 returns jsonb
 language plpgsql
@@ -198,6 +220,7 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_ip constant inet := app.a_inet(p_ip);
   c_max_intentos constant smallint := 5;
   c_bloqueo constant interval := interval '15 minutes';
   v_disp public.dispositivos%rowtype;
@@ -214,7 +237,7 @@ begin
   end if;
   if not v_disp.activo or v_disp.tipo = 'agente_impresion' then
     perform app.registrar_evento('login_pin_rechazado', 'dispositivos', v_disp.id::text, v_disp.local_id,
-      jsonb_build_object('motivo', 'dispositivo_no_autorizado', 'codigo', p_codigo), null, v_disp.id, p_ip);
+      jsonb_build_object('motivo', 'dispositivo_no_autorizado', 'codigo', p_codigo), null, v_disp.id, v_ip);
     return jsonb_build_object('ok', false, 'error', 'dispositivo_no_autorizado');
   end if;
 
@@ -226,17 +249,18 @@ begin
     select * into v_cred from app.pin_credenciales where user_id = v_perfil.user_id for update;
   end if;
 
+  -- Los códigos de empleado son identificadores, no secretos (como un nombre de usuario): la respuesta
+  -- a un PIN incorrecto informa los intentos restantes y el bloqueo, para que el personal sepa qué
+  -- pasa. Probar códigos exige un dispositivo registrado y el bloqueo es por usuario (DECISIONS D-005).
   if v_perfil.user_id is null or not v_perfil.activo or v_cred.user_id is null then
-    -- Mismo costo que una verificación real, para no revelar qué códigos existen por el tiempo de respuesta.
-    perform extensions.crypt(coalesce(p_pin, ''), extensions.gen_salt('bf', 10));
     perform app.registrar_evento('login_pin_fallido', 'usuarios_perfil', v_perfil.user_id::text, v_disp.local_id,
-      jsonb_build_object('motivo', 'usuario_desconocido_o_inactivo', 'codigo', p_codigo), v_perfil.user_id, v_disp.id, p_ip);
+      jsonb_build_object('motivo', 'usuario_desconocido_o_inactivo', 'codigo', p_codigo), v_perfil.user_id, v_disp.id, v_ip);
     return jsonb_build_object('ok', false, 'error', 'credenciales_invalidas');
   end if;
 
   if v_cred.bloqueado_hasta is not null and v_cred.bloqueado_hasta > now() then
     perform app.registrar_evento('login_pin_fallido', 'usuarios_perfil', v_perfil.user_id::text, v_disp.local_id,
-      jsonb_build_object('motivo', 'bloqueado'), v_perfil.user_id, v_disp.id, p_ip);
+      jsonb_build_object('motivo', 'bloqueado'), v_perfil.user_id, v_disp.id, v_ip);
     return jsonb_build_object('ok', false, 'error', 'bloqueado', 'bloqueado_hasta', v_cred.bloqueado_hasta);
   end if;
 
@@ -248,7 +272,7 @@ begin
       set intentos_fallidos = 0, bloqueado_hasta = v_bloqueado_hasta
       where user_id = v_perfil.user_id;
       perform app.registrar_evento('login_pin_bloqueado', 'usuarios_perfil', v_perfil.user_id::text, v_disp.local_id,
-        jsonb_build_object('intentos', v_intentos, 'bloqueado_hasta', v_bloqueado_hasta), v_perfil.user_id, v_disp.id, p_ip);
+        jsonb_build_object('intentos', v_intentos, 'bloqueado_hasta', v_bloqueado_hasta), v_perfil.user_id, v_disp.id, v_ip);
       return jsonb_build_object('ok', false, 'error', 'bloqueado', 'bloqueado_hasta', v_bloqueado_hasta);
     end if;
 
@@ -256,7 +280,7 @@ begin
     set intentos_fallidos = v_intentos, bloqueado_hasta = null
     where user_id = v_perfil.user_id;
     perform app.registrar_evento('login_pin_fallido', 'usuarios_perfil', v_perfil.user_id::text, v_disp.local_id,
-      jsonb_build_object('motivo', 'pin_incorrecto', 'intentos', v_intentos), v_perfil.user_id, v_disp.id, p_ip);
+      jsonb_build_object('motivo', 'pin_incorrecto', 'intentos', v_intentos), v_perfil.user_id, v_disp.id, v_ip);
     return jsonb_build_object('ok', false, 'error', 'credenciales_invalidas',
       'intentos_restantes', c_max_intentos - v_intentos);
   end if;
@@ -275,7 +299,7 @@ begin
       and not r.requiere_mfa
   ) then
     perform app.registrar_evento('login_pin_rechazado', 'usuarios_perfil', v_perfil.user_id::text, v_disp.local_id,
-      jsonb_build_object('motivo', 'sin_rol_en_local'), v_perfil.user_id, v_disp.id, p_ip);
+      jsonb_build_object('motivo', 'sin_rol_en_local'), v_perfil.user_id, v_disp.id, v_ip);
     return jsonb_build_object('ok', false, 'error', 'sin_rol_en_local');
   end if;
 
@@ -286,7 +310,7 @@ begin
     and (u.banned_until is null or u.banned_until < now());
   if v_email is null then
     perform app.registrar_evento('login_pin_rechazado', 'usuarios_perfil', v_perfil.user_id::text, v_disp.local_id,
-      jsonb_build_object('motivo', 'usuario_auth_no_disponible'), v_perfil.user_id, v_disp.id, p_ip);
+      jsonb_build_object('motivo', 'usuario_auth_no_disponible'), v_perfil.user_id, v_disp.id, v_ip);
     return jsonb_build_object('ok', false, 'error', 'credenciales_invalidas');
   end if;
 
@@ -300,8 +324,8 @@ begin
   );
 end;
 $$;
-revoke all on function public.pin_login_verificar(text, text, text, inet) from public, anon, authenticated;
-grant execute on function public.pin_login_verificar(text, text, text, inet) to service_role;
+revoke all on function public.pin_login_verificar(text, text, text, text) from public, anon, authenticated;
+grant execute on function public.pin_login_verificar(text, text, text, text) to service_role;
 
 -- -----------------------------------------------------------------------------
 -- Paso 3 de pin-login (solo service_role): liga la sesión de Auth al dispositivo por 12 h.
@@ -310,7 +334,7 @@ create or replace function public.pin_login_registrar_sesion(
   p_user_id uuid,
   p_dispositivo_id uuid,
   p_session_id uuid,
-  p_ip inet default null
+  p_ip text default null
 )
 returns jsonb
 language plpgsql
@@ -333,13 +357,14 @@ begin
   returning id into v_id;
 
   perform app.registrar_evento('login_pin_ok', 'sesiones_dispositivo', v_id::text, v_local,
-    jsonb_build_object('session_id', p_session_id, 'expira_at', v_expira), p_user_id, p_dispositivo_id, p_ip);
+    jsonb_build_object('session_id', p_session_id, 'expira_at', v_expira), p_user_id, p_dispositivo_id,
+    app.a_inet(p_ip));
 
   return jsonb_build_object('sesion_dispositivo_id', v_id, 'local_id', v_local, 'expira_at', v_expira);
 end;
 $$;
-revoke all on function public.pin_login_registrar_sesion(uuid, uuid, uuid, inet) from public, anon, authenticated;
-grant execute on function public.pin_login_registrar_sesion(uuid, uuid, uuid, inet) to service_role;
+revoke all on function public.pin_login_registrar_sesion(uuid, uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.pin_login_registrar_sesion(uuid, uuid, uuid, text) to service_role;
 
 -- -----------------------------------------------------------------------------
 -- Contexto de la sesión actual para la PWA: perfil, tipo de sesión y permisos efectivos por local.
@@ -362,11 +387,7 @@ as $$
     'aal', auth.jwt() ->> 'aal',
     'sesion_pin', (
       select jsonb_build_object('dispositivo_id', s.dispositivo_id, 'local_id', s.local_id, 'expira_at', s.expira_at)
-      from app.sesiones_dispositivo s
-      where s.session_id = nullif(auth.jwt() ->> 'session_id', '')::uuid
-        and s.user_id = auth.uid()
-        and s.revocada_at is null
-        and s.expira_at > now()
+      from app.sesion_pin_vigente() s
     ),
     -- true si tiene roles que exigen MFA, la sesión no es aal2 y tampoco es una sesión PIN
     -- (con PIN solo valen los roles sin MFA): la PWA debe pedir el TOTP.

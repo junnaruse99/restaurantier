@@ -3,9 +3,10 @@
 -- =============================================================================
 -- Modelo (§4, §14.3):
 --   * Un rol de user_local_roles es EFECTIVO para la sesión actual si:
---       - la sesión es aal2 (email + contraseña + TOTP), o
---       - el rol no requiere MFA y la sesión es una sesión PIN vigente (app.sesiones_dispositivo)
---         de un dispositivo activo del MISMO local.
+--       - el rol requiere MFA (admin, auditor) y la sesión es aal2 (email + contraseña + TOTP), o
+--       - el rol no requiere MFA (mozo, cajero, cocina) y la sesión es una sesión PIN vigente
+--         (app.sesiones_dispositivo) de un dispositivo activo del MISMO local. Un aal2 no basta:
+--         el personal de salón solo opera desde dispositivos registrados (§4.1).
 --   * Todas las políticas filtran por local_id contra los locales donde el usuario tiene un
 --     rol efectivo (o un permiso concreto).
 --   * Las tablas transaccionales no tienen INSERT/UPDATE/DELETE para clientes: se escriben solo con
@@ -23,16 +24,16 @@ as $$
   select coalesce(auth.jwt() ->> 'aal', '') = 'aal2'
 $$;
 
--- Local de la sesión PIN vigente; null si la sesión no es PIN, expiró, fue revocada o el
--- dispositivo está desactivado.
-create or replace function app.local_sesion_pin()
-returns uuid
+-- Sesión PIN vigente de la sesión actual; sin filas si no es PIN, expiró, fue revocada o el
+-- dispositivo está desactivado. Única definición de "sesión PIN válida" (RLS y mi_contexto).
+create or replace function app.sesion_pin_vigente()
+returns table (dispositivo_id uuid, local_id uuid, expira_at timestamptz)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select s.local_id
+  select s.dispositivo_id, s.local_id, s.expira_at
   from app.sesiones_dispositivo s
   join public.dispositivos d on d.id = s.dispositivo_id
   where s.session_id = nullif(auth.jwt() ->> 'session_id', '')::uuid
@@ -40,6 +41,16 @@ as $$
     and s.revocada_at is null
     and s.expira_at > now()
     and d.activo
+$$;
+
+create or replace function app.local_sesion_pin()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select local_id from app.sesion_pin_vigente()
 $$;
 
 create or replace function app.roles_efectivos()
@@ -55,7 +66,7 @@ as $$
   join public.usuarios_perfil up on up.user_id = ulr.user_id and up.activo
   where ulr.user_id = auth.uid()
     and (
-      app.sesion_mfa()
+      (r.requiere_mfa and app.sesion_mfa())
       or (not r.requiere_mfa and ulr.local_id = app.local_sesion_pin())
     )
 $$;
@@ -130,7 +141,43 @@ as $$
   where ulr.local_id in (select app.locales_miembro())
 $$;
 
+-- Usuarios con algún rol en los locales donde el usuario actual tiene el permiso indicado.
+create or replace function app.usuarios_de_locales_con_permiso(p_permiso text)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select distinct ulr.user_id
+  from public.user_local_roles ulr
+  where ulr.local_id in (select app.locales_con_permiso(p_permiso))
+$$;
+
+-- true si el usuario ya tiene un rol en algún local de la misma empresa que p_local.
+-- Un admin solo asigna roles a usuarios de su empresa; el primer rol de un usuario nuevo lo crea
+-- la Edge Function de alta de usuarios (service_role).
+create or replace function app.usuario_de_la_empresa_del_local(p_user uuid, p_local uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.user_local_roles ulr
+    join public.locales l_usuario on l_usuario.id = ulr.local_id
+    join public.locales l_destino on l_destino.id = p_local
+    where ulr.user_id = p_user
+      and l_usuario.empresa_id = l_destino.empresa_id
+  )
+$$;
+
 revoke all on function app.sesion_mfa() from public;
+revoke all on function app.sesion_pin_vigente() from public;
+revoke all on function app.usuarios_de_locales_con_permiso(text) from public;
+revoke all on function app.usuario_de_la_empresa_del_local(uuid, uuid) from public;
 revoke all on function app.local_sesion_pin() from public;
 revoke all on function app.roles_efectivos() from public;
 revoke all on function app.locales_miembro() from public;
@@ -141,6 +188,9 @@ revoke all on function app.empresas_con_permiso(text) from public;
 revoke all on function app.usuarios_visibles() from public;
 
 grant execute on function app.sesion_mfa() to authenticated, service_role;
+grant execute on function app.sesion_pin_vigente() to authenticated, service_role;
+grant execute on function app.usuarios_de_locales_con_permiso(text) to authenticated, service_role;
+grant execute on function app.usuario_de_la_empresa_del_local(uuid, uuid) to authenticated, service_role;
 grant execute on function app.local_sesion_pin() to authenticated, service_role;
 grant execute on function app.roles_efectivos() to authenticated, service_role;
 grant execute on function app.locales_miembro() to authenticated, service_role;
@@ -398,6 +448,7 @@ create policy user_local_roles_select on public.user_local_roles for select to a
 create policy user_local_roles_insert on public.user_local_roles for insert to authenticated
   with check (
     local_id in (select app.locales_con_permiso('gestionar_usuarios'))
+    and app.usuario_de_la_empresa_del_local(user_id, local_id)
     and exists (
       select 1
       from public.roles r
@@ -664,23 +715,25 @@ grant select on public.uso_cpe_mensual to authenticated;
 -- 5.8 Impresión, sincronización y auditoría
 -- =============================================================================
 grant select on public.print_jobs to authenticated;
+-- El payload de comprobantes, pre-cuentas y cortes incluye datos de clientes y de caja: solo el
+-- admin (para redirigir trabajos) los lee desde la API. El agente de impresión tendrá su propio
+-- permiso en la fase 1.
 create policy print_jobs_select on public.print_jobs for select to authenticated
-  using (local_id in (select app.locales_miembro()));
+  using (local_id in (select app.locales_con_permiso('configurar_local')));
 
 -- outbox_recibidos: sin políticas → lo usan las RPC SECURITY DEFINER.
 
 -- Los eventos sin local (perfiles de usuario, roles) se muestran si el autor o el usuario afectado
--- comparte un local con quien audita.
+-- tiene un rol en algún local donde quien consulta puede auditar.
 grant select on public.audit_log to authenticated;
 create policy audit_log_select on public.audit_log for select to authenticated
   using (
     local_id in (select app.locales_con_permiso('ver_auditoria'))
     or (
       local_id is null
-      and exists (select 1 from app.locales_con_permiso('ver_auditoria'))
       and (
-        user_id in (select app.usuarios_visibles())
-        or entidad_id in (select u::text from app.usuarios_visibles() u)
+        user_id in (select app.usuarios_de_locales_con_permiso('ver_auditoria'))
+        or entidad_id in (select u::text from app.usuarios_de_locales_con_permiso('ver_auditoria') u)
       )
     )
   );
@@ -735,6 +788,15 @@ create trigger auditoria after insert or update or delete on public.transaccione
 create trigger auditoria after insert or update or delete on public.cuentas_empleado
   for each row execute function app.auditar_cambio();
 create trigger auditoria after insert or update or delete on public.liquidaciones_empleado
+  for each row execute function app.auditar_cambio();
+-- CU6.4: la reimpresión de comandas queda en la auditoría.
+create trigger auditoria after insert or update or delete on public.comandas
+  for each row execute function app.auditar_cambio();
+create trigger auditoria after insert or update or delete on public.mesa_uniones
+  for each row execute function app.auditar_cambio();
+create trigger auditoria after insert or update or delete on public.traslados_mesa
+  for each row execute function app.auditar_cambio();
+create trigger auditoria after insert or update or delete on public.comprobante_items
   for each row execute function app.auditar_cambio();
 create trigger auditoria after insert or update or delete on public.bajas
   for each row execute function app.auditar_cambio('response');

@@ -27,10 +27,11 @@ export function useSesion(): Session | null | undefined {
   return sesion;
 }
 
-export function useContexto(habilitado: boolean) {
+/** Contexto de la sesión; la clave incluye el usuario para no mostrar el de quien usó antes la tablet. */
+export function useContexto(userId: string | undefined) {
   return useQuery({
-    queryKey: ["mi_contexto"],
-    enabled: habilitado,
+    queryKey: ["mi_contexto", userId],
+    enabled: Boolean(userId),
     queryFn: async (): Promise<ContextoSesion> => {
       const { data, error } = await supabase().rpc("mi_contexto");
       if (error) throw error;

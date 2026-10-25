@@ -1,7 +1,7 @@
 -- Permisos por rol (§4) y reglas de sesión (§4.1): MFA para admin/auditor, PIN ligado al dispositivo.
 begin;
 \ir _helpers.psql
-select plan(29);
+select plan(34);
 
 select pg_temp.crear_empresa_y_locales();
 -- Local A = Grill Prueba
@@ -24,6 +24,14 @@ select pg_temp.asignar_rol('f0000000-0000-4000-8000-000000000027', 'e2000000-000
 -- Cambio de perfil (evento de auditoría sin local).
 update public.usuarios_perfil set nombre_visible = 'Mozo renombrado'
 where user_id = 'f0000000-0000-4000-8000-000000000023';
+-- Usuario que solo trabaja en Urban (local B), donde el auditor de Grill no audita.
+select pg_temp.crear_usuario('f0000000-0000-4000-8000-000000000028', 'mozo.urban@prueba.test', 'Mozo Urban');
+select pg_temp.asignar_rol('f0000000-0000-4000-8000-000000000028', 'e2000000-0000-4000-8000-00000000000b', 'mozo');
+update public.usuarios_perfil set nombre_visible = 'Mozo Urban renombrado'
+where user_id = 'f0000000-0000-4000-8000-000000000028';
+-- Trabajo de impresión con datos de un comprobante.
+insert into public.print_jobs (local_id, tipo, payload)
+values ('e2000000-0000-4000-8000-00000000000a', 'comprobante', '{"cliente":"20999999991"}');
 
 create temp table disp as select pg_temp.crear_dispositivo('e2000000-0000-4000-8000-00000000000a') as id;
 grant select on disp to authenticated, service_role;
@@ -60,6 +68,7 @@ select is((select count(*)::int from public.mesas where local_id = 'e2000000-000
   'admin con MFA ve las mesas');
 select is((select count(*)::int from public.pagos), 1, 'admin con MFA ve los pagos');
 select is((select count(*)::int from public.empleados), 1, 'admin ve la planilla');
+select is((select count(*)::int from public.print_jobs), 1, 'admin ve los trabajos de impresión');
 select lives_ok(
   $$ update public.mesas set pos_x = 300 where codigo = 'A1' and local_id = 'e2000000-0000-4000-8000-00000000000a' $$,
   'admin mueve una mesa en el plano');
@@ -81,6 +90,10 @@ select is(
   (select count(*)::int from public.audit_log
    where entidad = 'usuarios_perfil' and accion = 'update' and entidad_id = 'f0000000-0000-4000-8000-000000000023'),
   1, 'auditor ve los cambios de perfil de usuarios de su local (eventos sin local)');
+select is(
+  (select count(*)::int from public.audit_log
+   where entidad = 'usuarios_perfil' and entidad_id = 'f0000000-0000-4000-8000-000000000028'),
+  0, 'auditor no ve eventos sin local de usuarios de locales donde no audita');
 select is((select count(*)::int from public.pagos), 1, 'auditor ve los pagos');
 select is(
   pg_temp.filas_afectadas($$ update public.mesas set pos_x = 1 where local_id = 'e2000000-0000-4000-8000-00000000000a' $$),
@@ -97,6 +110,8 @@ select is((select count(*)::int from public.pagos), 0, 'mozo no ve pagos');
 select is((select count(*)::int from public.audit_log), 0, 'mozo no ve la auditoría');
 select is((select count(*)::int from public.empleados), 0, 'mozo no ve la planilla (sueldos)');
 select is((select count(*)::int from public.sesiones_caja), 0, 'mozo no ve sesiones de caja');
+select is((select count(*)::int from public.print_jobs), 0,
+  'mozo no lee trabajos de impresión (payload de comprobantes y cortes)');
 select is(
   pg_temp.filas_afectadas($$ update public.mesas set pos_x = 1 where local_id = 'e2000000-0000-4000-8000-00000000000a' $$),
   0, 'mozo no puede editar el plano');
@@ -109,6 +124,13 @@ select is((select count(*)::int from public.mesas), 0, 'una sesión PIN de más 
 select pg_temp.como_postgres();
 select pg_temp.como_aal1('f0000000-0000-4000-8000-000000000023');
 select is((select count(*)::int from public.mesas), 0, 'un mozo sin sesión de dispositivo no ve nada');
+
+-- Un mozo que enrola TOTP por su cuenta (aal2) sigue sin acceso fuera de un dispositivo registrado.
+select pg_temp.como_postgres();
+select pg_temp.como_mfa('f0000000-0000-4000-8000-000000000023');
+select is((select count(*)::int from public.mesas), 0,
+  'un aal2 no activa roles sin MFA: el mozo solo opera desde un dispositivo registrado');
+select is((public.mi_contexto() -> 'locales'), '[]'::jsonb, 'mi_contexto del mozo en aal2 no tiene locales');
 
 -- ---------------------------------------------------------------------------
 -- Cajero: ve pagos y solo sus sesiones de caja.

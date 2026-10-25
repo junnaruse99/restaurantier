@@ -28,7 +28,7 @@ const SELECT =
 export default function RegistrarDispositivo() {
   const router = useRouter();
   const sesion = useSesion();
-  const contexto = useContexto(Boolean(sesion));
+  const contexto = useContexto(sesion?.user.id);
   const [actual, setActual] = useState<DispositivoLocal | null | undefined>(undefined);
   const [localId, setLocalId] = useState("");
   const [nombre, setNombre] = useState("");

@@ -116,5 +116,6 @@ export function expiracionSesionPin(): Date | null {
 
 export async function cerrarSesion(): Promise<void> {
   localStorage.removeItem(CLAVE_EXPIRACION);
-  await supabase().auth.signOut();
+  // Solo esta sesión: cerrar en una tablet no debe cerrar las del mismo usuario en otros equipos.
+  await supabase().auth.signOut({ scope: "local" });
 }

@@ -95,13 +95,13 @@ create table public.bajas (
 );
 create index bajas_comprobante_idx on public.bajas (comprobante_id);
 
--- Referencias circulares hacia comprobantes.
+-- Referencias circulares hacia comprobantes, compuestas con local_id como el resto (D-007).
 alter table public.pagos
-  add foreign key (comprobante_id) references public.comprobantes (id);
+  add foreign key (comprobante_id, local_id) references public.comprobantes (id, local_id);
 alter table public.anulaciones
-  add foreign key (comprobante_id) references public.comprobantes (id);
+  add foreign key (comprobante_id, local_id) references public.comprobantes (id, local_id);
 alter table public.liquidaciones_empleado
-  add foreign key (comprobante_id) references public.comprobantes (id);
+  add foreign key (comprobante_id, local_id) references public.comprobantes (id, local_id);
 
 -- Uso mensual de documentos frente al plan contratado (§10.4, R4).
 -- security_invoker: respeta la RLS de comprobantes de quien consulta.

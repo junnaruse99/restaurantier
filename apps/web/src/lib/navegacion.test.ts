@@ -14,4 +14,14 @@ describe("destinoSeguro", () => {
     expect(destinoSeguro(null)).toBe("/inicio");
     expect(destinoSeguro("", "/ingresar")).toBe("/ingresar");
   });
+
+  it("rechaza tabuladores y saltos de línea que el parser de URL elimina", () => {
+    expect(destinoSeguro("/\t/malicioso.example")).toBe("/inicio");
+    expect(destinoSeguro("/\n/malicioso.example")).toBe("/inicio");
+    expect(destinoSeguro("/\r\n\\malicioso.example")).toBe("/inicio");
+  });
+
+  it("normaliza la ruta interna", () => {
+    expect(destinoSeguro("/admin/../dispositivo#x")).toBe("/dispositivo#x");
+  });
 });

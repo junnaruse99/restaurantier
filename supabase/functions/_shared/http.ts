@@ -27,7 +27,11 @@ export function json(req: Request, status: number, cuerpo: unknown): Response {
   });
 }
 
-/** IP del cliente según las cabeceras del gateway; null si no es válida. */
+/**
+ * IP del cliente según X-Forwarded-For; null si no tiene forma de IP. El primer salto lo puede alterar
+ * el cliente, así que solo sirve para el límite de mejor esfuerzo y como dato de auditoría; la base
+ * descarta lo que no sea un inet válido (app.a_inet).
+ */
 export function ipCliente(req: Request): string | null {
   const xff = req.headers.get("x-forwarded-for");
   const ip = xff?.split(",")[0]?.trim();

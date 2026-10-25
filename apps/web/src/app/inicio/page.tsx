@@ -49,7 +49,7 @@ export default function Inicio() {
   const router = useRouter();
   const consultas = useQueryClient();
   const sesion = useSesion();
-  const contexto = useContexto(Boolean(sesion));
+  const contexto = useContexto(sesion?.user.id);
   const permisos = usePermisos();
 
   useEffect(() => {

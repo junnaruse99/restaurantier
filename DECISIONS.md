@@ -22,10 +22,14 @@ La especificación pide Next.js 15+. Se usa la rama 15.5 porque `@serwist/next` 
 - **Descartado:** firmar un JWT propio con el secreto del proyecto. Los proyectos nuevos de Supabase usan claves asimétricas y ese token no se podría revocar.
 - **Implicación operativa:** el límite de Auth "token verifications" (30 cada 5 min por IP) se cuenta sobre la IP de la Edge Function. Hay que subirlo en el panel (p. ej. a 300) antes de operar; ver `docs/runbook-entornos.md`.
 - Los usuarios que solo entran con PIN tienen un email sintético en un dominio reservado (`u-<código>@pin.warike.invalid`). Auth lo acepta en local; hay que confirmarlo en staging (P8).
+- Cada enlace mágico nuevo invalida el anterior del mismo usuario. Si dos ingresos simultáneos se pisan (dos equipos o un doble toque), `pin-login` reintenta hasta 3 veces.
+- Los cierres de sesión son de alcance `local`: cerrar en una tablet no cierra las sesiones del mismo usuario en otros equipos.
 
-### D-003 · MFA obligatorio aplicado por la base, no solo por la UI (§4.1)
+### D-003 · Cada tipo de rol exige su tipo de sesión, aplicado por la base (§4.1)
 
-`roles.requiere_mfa` (admin y auditor) hace que esos roles solo sean efectivos en sesiones `aal2`. Un admin que entra con contraseña sin TOTP, o con PIN, no ve ningún dato. `mi_contexto()` devuelve `requiere_mfa` para que la PWA lleve al usuario al enrolamiento o a la verificación del TOTP.
+- `roles.requiere_mfa` (admin y auditor): solo son efectivos en sesiones `aal2`. Un admin que entra con contraseña sin TOTP, o con PIN, no ve ningún dato.
+- Roles sin MFA (mozo, cajero, cocina): solo son efectivos en una sesión PIN vigente de un dispositivo registrado del mismo local. Un aal2 **no** los activa. Así, un mozo que enrole un TOTP o cambie su contraseña por su cuenta no obtiene acceso fuera de un dispositivo registrado, ni sesiones que escapen a la vigencia de 12 h y a la revocación.
+- `mi_contexto()` devuelve `requiere_mfa` para que la PWA lleve al usuario al enrolamiento o a la verificación del TOTP.
 
 ### D-004 · El hash del PIN vive fuera de la API (§5.3)
 
@@ -33,7 +37,10 @@ La especificación pide Next.js 15+. Se usa la rama 15.5 porque `@serwist/next` 
 
 ### D-005 · Bloqueo de PIN y conteo de intentos en SQL (§4.1)
 
-`pin_login_verificar` bloquea la fila de credenciales (`for update`) para contar los intentos sin carreras: 5 fallos seguidos bloquean 15 min, y un ingreso correcto reinicia el contador. Para no revelar por el tiempo de respuesta qué códigos existen, un código inexistente también ejecuta bcrypt. Todo intento fallido, bloqueo e ingreso queda en `audit_log` (§14.7, "inicios de sesión fallidos"). Además la Edge Function limita en memoria a 20 intentos por minuto por IP y dispositivo (§14.10).
+`pin_login_verificar` bloquea la fila de credenciales (`for update`) para contar los intentos sin carreras: 5 fallos seguidos bloquean 15 min, y un ingreso correcto reinicia el contador. Todo intento fallido, bloqueo e ingreso queda en `audit_log` (§14.7, "inicios de sesión fallidos").
+
+- **Los códigos de empleado son identificadores, no secretos** (como un nombre de usuario). Ante un PIN incorrecto se informan los intentos restantes y el bloqueo, para que el personal sepa qué pasa. Eso permite distinguir qué códigos existen, pero probar códigos exige un dispositivo registrado y el bloqueo es por usuario. Ocultarlo empeoraría la operación en caja sin una ganancia real.
+- La Edge Function limita en memoria a 20 intentos por minuto por IP y dispositivo (§14.10). Es de mejor esfuerzo: la IP sale de `X-Forwarded-For`, que el cliente puede alterar. La protección real es el bloqueo por usuario en la base. Una IP mal formada se guarda como null y no hace fallar el ingreso.
 
 ### D-006 · Escrituras: RPC para lo transaccional, RLS por columna para la configuración (§3, §5)
 
@@ -118,6 +125,8 @@ El tratamiento fiscal de las cortesías (100 % de descuento, sin comprobante de 
 - Triggers `BEFORE UPDATE/DELETE/TRUNCATE` bloquean cualquier cambio, incluso de `postgres` y `service_role`, y además se revocan esos privilegios.
 - El dueño de la tabla podría desactivar los triggers con una migración. El control es la revisión obligatoria de migraciones en CI, más la exportación mensual al bucket inmutable (fase 4).
 - La bitácora excluye los datos sensibles o voluminosos: `token_hash`, `ultimo_ping`, y el `request`/`response` de Nubefact y Niubiz.
+- `print_jobs` y `outbox_recibidos` no permiten borrado físico (borrar el outbox permitiría reaplicar mutaciones offline), pero no llevan trigger de auditoría: ya son un registro, y `print_jobs` cambia de estado en cada impresión. Una futura purga por antigüedad se hará con una migración explícita.
+- Los eventos sin local (perfiles, roles) solo los ve quien audita un local donde el autor o el usuario afectado tiene un rol.
 
 ### D-021 · Pruebas de base de datos con pgTAP (§3, §16)
 

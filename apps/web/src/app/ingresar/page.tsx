@@ -3,7 +3,7 @@
 import { Alert, Button, Input, Label } from "@warike/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Cargando, Pantalla } from "@/components/pantalla";
 import { TecladoPin } from "@/components/teclado-pin";
 import type { DispositivoLocal } from "@/lib/db-local";
@@ -21,6 +21,8 @@ export default function IngresarConPin() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dispositivoRevocado, setDispositivoRevocado] = useState(false);
+  // El estado `enviando` llega tarde a los cierres: Enter y el botón OK casi a la vez enviarían dos veces.
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     void obtenerDispositivo().then((d) => setDispositivo(d ?? null));
@@ -47,19 +49,26 @@ export default function IngresarConPin() {
   const puedeEnviar = /^[0-9A-Za-z]{3,12}$/.test(codigo) && /^[0-9]{4,6}$/.test(pin);
 
   async function enviar() {
-    if (!dispositivo || !puedeEnviar || enviando) return;
+    if (!dispositivo || !puedeEnviar || enviandoRef.current) return;
+    enviandoRef.current = true;
     setEnviando(true);
     setError(null);
-    const resultado = await iniciarSesionConPin({ deviceToken: dispositivo.token, codigo, pin });
-    setEnviando(false);
-    if (resultado.ok) {
-      router.replace("/inicio");
-      return;
+    try {
+      const resultado = await iniciarSesionConPin({ deviceToken: dispositivo.token, codigo, pin });
+      if (resultado.ok) {
+        router.replace("/inicio");
+        return;
+      }
+      setPin("");
+      setCampo("pin");
+      setError(mensajeErrorPin(resultado));
+      setDispositivoRevocado(resultado.error === "dispositivo_no_autorizado");
+    } catch {
+      setError(mensajeErrorPin({ ok: false, error: "error_interno" }));
+    } finally {
+      enviandoRef.current = false;
+      setEnviando(false);
     }
-    setPin("");
-    setCampo("pin");
-    setError(mensajeErrorPin(resultado));
-    setDispositivoRevocado(resultado.error === "dispositivo_no_autorizado");
   }
 
   function escribir(digito: string) {
