@@ -28,7 +28,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Verificar configuración del entorno
@@ -41,11 +41,11 @@ jobs:
             echo "listo=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.cfg.outputs.listo == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - if: steps.cfg.outputs.listo == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: pnpm
       - if: steps.cfg.outputs.listo == 'true'
         run: pnpm install --frozen-lockfile
@@ -69,7 +69,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Verificar configuración del entorno
@@ -82,11 +82,11 @@ jobs:
             echo "listo=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.cfg.outputs.listo == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - if: steps.cfg.outputs.listo == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: pnpm
       - if: steps.cfg.outputs.listo == 'true'
         run: pnpm install --frozen-lockfile

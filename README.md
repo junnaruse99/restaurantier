@@ -33,7 +33,7 @@ docs/               Especificación, runbooks y manuales
 
 ## Desarrollo local
 
-Requisitos: Node 20+, pnpm 10 (`corepack enable`) y Docker.
+Requisitos: Node 22+ (recomendado 24, ver `.nvmrc`), pnpm 10 (`corepack enable`) y Docker.
 
 ```bash
 pnpm install

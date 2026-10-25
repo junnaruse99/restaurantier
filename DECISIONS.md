@@ -129,6 +129,15 @@ El tratamiento fiscal de las cortesías (100 % de descuento, sin comprobante de 
 
 Crear los proyectos de Supabase (plan Pro, `sa-east-1`) genera costos y debe hacerse con la cuenta y el MFA del cliente. Los pasos están en `docs/runbook-entornos.md`; el workflow de despliegue se omite solo hasta que existan los secretos.
 
+### D-023 · Node.js 24 LTS en lugar de Node.js 20 (§3)
+
+La especificación pide Node.js 20 para el agente de impresión, pero:
+
+- Node 20 terminó su soporte en abril de 2026 y GitHub Actions ya lo marca como obsoleto.
+- `@supabase/supabase-js` 2.118 exige Node 22 o superior para Realtime (WebSocket nativo), y el agente se suscribe a `print_jobs` por Realtime.
+
+Se usa Node 24 LTS en CI y en `.nvmrc`; `engines` exige `>=22.12`.
+
 ---
 
 ## Preguntas abiertas

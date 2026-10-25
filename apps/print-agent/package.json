@@ -5,7 +5,7 @@
   "description": "Agente local de impresión ESC/POS y relevo LAN (fase 1)",
   "type": "module",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -15,7 +15,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.19.2",
     "tsx": "^4.23.15",
     "vitest": "^4.1.12"
   }
