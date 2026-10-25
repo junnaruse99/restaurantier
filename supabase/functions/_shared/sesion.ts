@@ -50,8 +50,11 @@ export function sesionPublica(session: Session) {
   };
 }
 
-/** Contraseña aleatoria para usuarios que nunca la usan (entran con PIN o como agente). */
+/**
+ * Contraseña aleatoria para usuarios que nunca la usan (entran con PIN o como agente). El sufijo fijo
+ * cumple la política de Auth (minúsculas, mayúsculas y dígitos); la entropía la dan los 32 bytes.
+ */
 export function contrasenaAleatoria(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("") + "Wk7";
 }

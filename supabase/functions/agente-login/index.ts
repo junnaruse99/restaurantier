@@ -10,8 +10,19 @@
 //   400 solicitud_invalida · 401 dispositivo_no_autorizado · 429 demasiadas_solicitudes
 //   500 error_interno
 
-import { cabecerasCors, ipCliente, json, LimitadorSolicitudes, payloadJwt } from "../_shared/http.ts";
-import { clienteAdmin, contrasenaAleatoria, crearSesion, sesionPublica } from "../_shared/sesion.ts";
+import {
+  cabecerasCors,
+  ipCliente,
+  json,
+  LimitadorSolicitudes,
+  payloadJwt,
+} from "../_shared/http.ts";
+import {
+  clienteAdmin,
+  contrasenaAleatoria,
+  crearSesion,
+  sesionPublica,
+} from "../_shared/sesion.ts";
 
 const FORMATO_TOKEN = /^wkd_[0-9a-f]{64}$/;
 
@@ -41,12 +52,13 @@ async function crearUsuarioAgente(dispositivoId: string): Promise<{ id: string; 
     app_metadata: { tipo: "agente_impresion", dispositivo_id: dispositivoId },
   });
   if (!error) return { id: data.user.id, email };
-  if (error.code !== "email_exists") throw error;
+  // Ya existe: lo creó un intento anterior o un ingreso simultáneo (Auth responde email_exists o,
+  // si choca en la misma transacción, un error de base de datos). generateLink lo devuelve.
   const { data: enlace, error: errorEnlace } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
   });
-  if (errorEnlace) throw errorEnlace;
+  if (errorEnlace) throw error;
   return { id: enlace.user.id, email };
 }
 

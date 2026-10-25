@@ -148,7 +148,10 @@ Deno.serve(async (req) => {
     if (errorCreacion) {
       if (errorCreacion.code === "email_exists") {
         return requiereMfa
-          ? json(req, 409, { error: "email_duplicado", mensaje: "Ya existe un usuario con ese email" })
+          ? json(req, 409, {
+              error: "email_duplicado",
+              mensaje: "Ya existe un usuario con ese email",
+            })
           : json(req, 409, {
               error: "codigo_duplicado",
               mensaje: "Ya existe un usuario con ese código de empleado",
@@ -167,7 +170,9 @@ Deno.serve(async (req) => {
       p_local_id: solicitud.local_id,
       p_role_id: solicitud.role_id,
       p_nombre_visible: solicitud.nombre_visible,
-      p_codigo_empleado: requiereMfa ? solicitud.codigo_empleado ?? null : solicitud.codigo_empleado,
+      p_codigo_empleado: requiereMfa
+        ? (solicitud.codigo_empleado ?? null)
+        : solicitud.codigo_empleado,
       p_pin: requiereMfa ? null : solicitud.pin,
       p_empleado_id: solicitud.empleado_id ?? null,
       p_creado_por: creadoPor,
