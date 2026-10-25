@@ -1,0 +1,18 @@
+{
+  "name": "@warike/id-lookup",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Interfaz ConsultaDocumento y proveedores de consulta RUC/DNI",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.12"
+  }
+}
