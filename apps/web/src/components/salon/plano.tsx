@@ -52,6 +52,7 @@ export function Plano({
   alElegir,
   habilitada = () => true,
   resaltadas,
+  altoMaximo,
 }: {
   piso: Piso;
   mesas: readonly Mesa[];
@@ -60,14 +61,19 @@ export function Plano({
   alElegir: (mesa: Mesa) => void;
   habilitada?: (mesa: Mesa) => boolean;
   resaltadas?: ReadonlySet<string>;
+  /** Alto máximo (CSS) dentro de un diálogo: el ancho se ajusta para conservar la proporción. */
+  altoMaximo?: string;
 }) {
   const visibles = mesas.filter(
     (m) => m.piso_id === piso.id && m.activa && !m.tipo.startsWith("virtual"),
   );
   return (
     <div
-      className="relative w-full overflow-hidden rounded-lg border bg-muted/40"
-      style={{ aspectRatio: `${piso.ancho_canvas} / ${piso.alto_canvas}` }}
+      className="relative mx-auto w-full overflow-hidden rounded-lg border bg-muted/40"
+      style={{
+        aspectRatio: `${piso.ancho_canvas} / ${piso.alto_canvas}`,
+        maxWidth: altoMaximo ? `calc(${altoMaximo} * ${piso.ancho_canvas / piso.alto_canvas})` : undefined,
+      }}
       data-testid={`plano-${piso.nombre}`}
     >
       {visibles.map((m) => {

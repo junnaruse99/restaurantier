@@ -70,6 +70,7 @@ function Salon() {
     <div className="min-h-dvh">
       <Encabezado titulo="Salón" />
       <main className="space-y-3 p-3">
+        <AvisosListos mesas={mesas.data!} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Tabs
             etiqueta="Pisos"
@@ -110,7 +111,6 @@ function Salon() {
         />
       ) : null}
       <DialogoLiberar mesa={liberar} alCerrar={() => setLiberar(null)} />
-      <AvisosListos mesas={mesas.data!} />
     </div>
   );
 }

@@ -131,6 +131,7 @@ export function DialogoTraslado({
             habilitada={habilitada}
             alElegir={setDestino}
             resaltadas={destino ? new Set([destino.id]) : undefined}
+            altoMaximo="calc(90dvh - 17rem)"
           />
         ) : null}
         {error ? <Alert variant="destructive">{error}</Alert> : null}

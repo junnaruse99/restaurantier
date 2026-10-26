@@ -157,6 +157,9 @@ function PantallaOrden() {
         </Button>
       </Encabezado>
 
+      <div className="px-3 pt-3 empty:hidden">
+        <AvisosListos mesas={mesas.data ?? []} />
+      </div>
       <div className="grid flex-1 gap-4 p-3 lg:grid-cols-[1fr_minmax(360px,440px)]">
         {editable ? (
           <SelectorCarta
@@ -472,7 +475,6 @@ function PantallaOrden() {
         </DialogContent>
       </Dialog>
       <DialogoNota item={nota} alCerrar={() => setNota(null)} />
-      <AvisosListos mesas={mesas.data ?? []} />
     </div>
   );
 }

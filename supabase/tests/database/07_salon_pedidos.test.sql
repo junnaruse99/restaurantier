@@ -162,10 +162,11 @@ select results_eq(
      where c.orden_id = pg_temp.id('o1') order by e.nombre $$,
   $$ values ('Bar', 1), ('Cocina', 1) $$,
   'una comanda por estación, con el mismo número');
-select is((select count(*)::int from public.orden_items where orden_id = pg_temp.id('o1') and estado = 'enviado'), 4,
-  'todos los ítems quedan enviados');
-select ok((select comanda_id is null and enviado_at is not null from public.orden_items where id = pg_temp.id('i_bolsa')),
-  'un ítem sin estación se envía sin comanda (D-025)');
+select is((select count(*)::int from public.orden_items where orden_id = pg_temp.id('o1') and estado = 'enviado'), 3,
+  'los ítems con estación quedan enviados');
+select ok((select comanda_id is null and enviado_at is not null and estado = 'servido' from public.orden_items
+           where id = pg_temp.id('i_bolsa')),
+  'un ítem sin estación no va a cocina: queda servido, sin comanda (D-025)');
 select results_eq(
   $$ select tipo, impresora_id, estado, payload ->> 'mesa', payload ->> 'mozo', payload ->> 'estacion',
             jsonb_array_length(payload -> 'items'), payload -> 'items' -> 0 -> 'modificadores'

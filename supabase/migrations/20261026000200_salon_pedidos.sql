@@ -413,7 +413,7 @@ revoke all on function app.encolar_impresion(uuid, uuid, text, jsonb) from publi
 -- -----------------------------------------------------------------------------
 -- Enviar (CU6.3, flujo A.3): agrupa los ítems en borrador por estación, crea una comanda y un
 -- trabajo de impresión por estación y marca los ítems "enviado". Los ítems sin estación (p. ej.
--- la bolsa) se marcan enviados sin comanda (DECISIONS D-025).
+-- la bolsa) no se preparan: pasan directo a "servido", sin comanda (DECISIONS D-025).
 -- -----------------------------------------------------------------------------
 create or replace function public.enviar_comanda(
   p_orden_id uuid,
@@ -470,12 +470,12 @@ begin
   end loop;
 
   update public.orden_items
-  set estado = 'enviado', enviado_at = now()
+  set estado = 'servido', enviado_at = now()
   where orden_id = v_orden.id and estado = 'borrador' and estacion_produccion_id is null
     and (p_item_ids is null or id = any (p_item_ids));
 
   select count(*) into v_enviados from public.orden_items
-  where orden_id = v_orden.id and enviado_at >= now() and estado = 'enviado';
+  where orden_id = v_orden.id and enviado_at >= now() and estado in ('enviado', 'servido');
 
   return app.registrar_mutacion(p_client_mutation_id, v_orden.local_id, 'enviar_comanda',
     jsonb_build_object('orden_id', p_orden_id, 'item_ids', to_jsonb(p_item_ids)),
