@@ -160,7 +160,7 @@ export default function EditorPlano({
                     height={m.alto}
                     align="center"
                     verticalAlign="middle"
-                    fontSize={Math.min(22, m.alto / 2.5)}
+                    fontSize={Math.min(22, m.alto / 2.5, (m.ancho - 8) / (m.codigo.length * 0.62))}
                     fontStyle="bold"
                     fill="#0f172a"
                     listening={false}
