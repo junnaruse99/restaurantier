@@ -34,13 +34,17 @@ importers:
         version: 8.72.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
 
   apps/print-agent:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.118.0
+        version: 2.118.0
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       vitest:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@24.19.2)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
@@ -175,6 +179,9 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      '@warike/print-agent':
+        specifier: workspace:*
+        version: link:../../apps/print-agent
       vitest:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@24.19.2)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
