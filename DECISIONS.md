@@ -3,7 +3,7 @@
 Registro de decisiones, ambigüedades resueltas y preguntas abiertas (ver `docs/especificacion.md`, "Cómo usar este documento").
 Cada decisión indica la sección de la especificación que la origina.
 
-Estado: **Fase 0 (Fundaciones)** implementada.
+Estado: **Fase 0 (Fundaciones)** y **Fase 1 (Salón y cocina)** implementadas.
 
 ---
 
@@ -147,6 +147,77 @@ La especificación pide Node.js 20 para el agente de impresión, pero:
 
 Se usa Node 24 LTS en CI y en `.nvmrc`; `engines` exige `>=22.12`.
 
+### D-024 · Las mesas virtuales esperan a sus módulos (M10, M11, M17)
+
+Las mesas `virtual_*` (delivery, para llevar, personal, auditor) ya existen en el modelo y el editor del plano las crea (CU1.2), pero su operación pertenece a los módulos de las fases 2 y 3. En la fase 1, `abrir_orden` las rechaza (`mesa_virtual_no_disponible`) y el salón no las muestra.
+
+### D-025 · Los ítems sin estación no van a cocina
+
+Un producto cuya categoría no tiene estación (p. ej. la bolsa plástica) no genera comanda: al enviar pasa directo a `servido`. Así no queda "enviado" para siempre esperando a una cocina que no lo prepara.
+
+### D-026 · Una orden que nunca llegó a cocina la cancela el mozo (CU9.3)
+
+CU9.3 exige admin para anular una orden "sin pagos". Si ningún ítem se envió, no hay nada que cocina deba dejar de preparar ni riesgo de fraude: el mozo la cancela con `anular_item_borrador` (motivo por defecto `error_digitacion`) y la mesa queda libre. Con ítems enviados se exige el motivo y la autorización de admin (con su sesión, su PIN en la tablet o la aprobación remota).
+
+### D-027 · Cocina también marca agotados (CU3.3)
+
+CU3.3 no dice quién marca un producto agotado. Quien sabe que algo se acabó es cocina, así que `marcar_disponibilidad` acepta `gestionar_carta` (admin) u `operar_kds` (cocina). El KDS tiene el botón "Agotados".
+
+### D-028 · Autorización de supervisor con PIN: token de un solo uso (§4.1, flujo C)
+
+El supervisor digita su código y PIN en la tablet del mozo (`autorizar_con_pin`). Se emite una autorización de un solo uso, válida 2 minutos, atada al permiso (`autorizar_*`), al local y a quien la pidió; la RPC sensible la consume (`app.autorizador`). El PIN usa el mismo conteo de intentos y bloqueo que el ingreso (`app.comprobar_pin`) y queda en la auditoría. La alternativa remota es una solicitud `pendiente` que el admin aprueba en `/admin/aprobaciones`; las tablets la ven por Realtime.
+
+### D-029 · Errores de las RPC con estado HTTP y código estable
+
+Las RPC fallan con SQLSTATE `PTxxx` (PostgREST responde con ese estado HTTP), el mensaje para la persona en `message` y un código estable en `details` (`mesa_ocupada`, `requiere_autorizacion`…). La PWA decide por el código; las pruebas pgTAP comparan `SQLSTATE:código`.
+
+### D-030 · Idempotencia de las mutaciones de salón desde la fase 1 (§12.2)
+
+`abrir_orden`, `agregar_items`, `enviar_comanda`, `trasladar_orden`, `anular_item`, `anular_orden` y `solicitar_anulacion` aceptan `client_mutation_id` (UUID v7) y lo registran en `outbox_recibidos` con un bloqueo consultivo: un reenvío devuelve el mismo resultado sin repetir el efecto. La PWA reintenta con el mismo id si se corta la conexión. El outbox en Dexie y el trabajo sin internet llegan con la fase 3.
+
+### D-031 · Agente de impresión con usuario técnico por dispositivo (§3, §13, §14.3)
+
+- El agente nunca recibe la `service_role`. Entra con el token de su dispositivo (tipo `agente_impresion`) por la Edge Function `agente-login`, que la primera vez crea un usuario técnico con el rol `agente_impresion` (único permiso: `imprimir`). La sesión queda ligada al dispositivo por 24 h y se renueva sola; revocar el dispositivo la corta.
+- Toma trabajos con `FOR UPDATE SKIP LOCKED` (solo de sus impresoras). Un fallo vuelve el trabajo a la cola con espera creciente (5 s a 60 s); tras 20 intentos queda en `error` para que el admin lo redirija (CA §13). Un trabajo tomado y no reportado en 2 minutos se vuelve a entregar.
+- Antes de imprimir consulta el sensor de papel (`DLE EOT 4`); si la impresora no lo implementa, imprime igual.
+- El relevo LAN con cola en SQLite (§12.3) es parte del modo offline de la fase 3; la autoactualización desde GitHub Releases (§17), de la fase 4.
+
+### D-032 · El menú del día se puede publicar desde la fase 1 (M5)
+
+M5 está en la fase 2, pero el menú del día es el plato más vendido: sin él, el simulacro de servicio no representa un día real. Se adelantó lo mínimo: la validación de entrada y segundo contra el menú publicado al pedir (`agregar_items`), el precio por día que ya traía la semilla y la pantalla de publicación (`/admin/menu`, admin o cocina por D-012). Las reglas de precio por día se editan en la fase 2.
+
+### D-033 · Planilla mínima junto con usuarios (M2)
+
+§15 no asigna M2 a ninguna fase, y M4 vincula usuarios con empleados. Se incluyó lo mínimo de M2: alta, edición, baja lógica (no hay borrado, CA M2) y exportación a Excel (CSV con BOM y `;`). El autocompletado por DNI usa `id-lookup`, que llega en la fase 2.
+
+### D-034 · Sin descuento de stock
+
+`productos.controla_stock` existe en el modelo, pero el inventario es post-MVP (§15, fase 5). Agotado es una marca manual (CU3.3).
+
+### D-035 · Separar una mesa unida sin ítems la deja por limpiar
+
+CU8.3 habla de llevar ítems a otra mesa. Separar una mesa unida sin elegir ítems la desocupa y la marca `por_limpiar` (los clientes estuvieron ahí); con ítems, esos ítems pasan a una orden nueva en esa mesa.
+
+### D-036 · Alta de usuarios en dos pasos (CU4.1)
+
+Crear la cuenta de Auth necesita la `service_role`, que solo vive en Edge Functions (§14.3). `admin-usuarios` valida primero con la sesión del admin (`validar_alta_usuario`: `gestionar_usuarios`, MFA, rol asignable en ese local), crea la cuenta y luego el perfil, el rol y el PIN en una transacción (`crear_perfil_usuario`); si el perfil falla, borra la cuenta recién creada. El rol técnico del agente no se asigna a personas, ni por la función ni por la API (política de `user_local_roles`).
+
+### D-037 · El KDS agrupa por comanda y muestra lo anulado
+
+Cada ticket es una comanda de una estación, ordenada por antigüedad, con alerta amarilla y roja configurable (`config_local.kds_alerta_amarilla_min` y `kds_alerta_roja_min`, 15 y 25 min por defecto). Lo anulado en los últimos 30 minutos se ve tachado (CU9.2): dentro del ticket si este sigue en preparación, o en una franja aparte si no.
+
+### D-038 · react-konva de la rama 19.2
+
+El editor del plano usa react-konva (CU1.1). Next 15.5 trae su propio React 19.2 para el App Router, y react-konva 19.3 exige React 19.3 en tiempo de ejecución; se fija la rama 19.2. El editor se carga solo en el navegador y el paquete opcional `canvas` de Konva se excluye del build del servidor.
+
+### D-039 · Latencia del salón medida en el simulacro; la carga con 30 equipos va con k6
+
+La CA de M1 pide ≤ 2 s (p95) con 30 dispositivos. El simulacro E2E de 5 tablets (criterio de salida de la fase 1) mide la propagación entre tablets y falla si supera 2 s (en local, alrededor de 0,6 s). La prueba de carga de Realtime con 30 conexiones usa k6 (§3) y se ejecuta en la fase 4 (endurecimiento) contra staging, donde la red y la infraestructura son las reales.
+
+### D-040 · Cálculos de salón en `packages/domain` y en SQL
+
+El total de línea, la fecha operativa, el precio vigente (con feriados como domingo) y la validación de modificadores están en `packages/domain` (cobertura del 100 %) para que la PWA muestre lo mismo que cobrará el servidor, y en SQL (`agregar_items`, `app.precio_vigente`, `app.fecha_operativa`), que es la autoridad. El total de la orden en la fase 1 es la suma de líneas; descuentos e IGV llegan con la caja.
+
 ---
 
 ## Preguntas abiertas
@@ -163,6 +234,8 @@ Se usa Node 24 LTS en CI y en `.nvmrc`; `engines` exige `>=22.12`.
 | P8  | Confirmar en staging que Auth acepta el dominio reservado `pin.warike.invalid` para los usuarios de PIN, o definir uno propio                                                                   | Equipo           | Abierta |
 | P9  | RUC, razón social, dirección fiscal, ubigeo y dirección del local para reemplazar los valores provisionales                                                                                     | Cliente          | Abierta |
 | P10 | Feriados que se cobran como domingo (menú a S/ 18)                                                                                                                                              | Cliente          | Abierta |
+| P11 | Turnos para el reporte de ventas por mozo (CU4.3): ¿mañana/tarde/noche con qué horas? Mientras tanto, el turno es la fecha operativa                                                            | Cliente          | Abierta |
+| P12 | Modelos de las impresoras de cocina, parrilla y bar: confirmar que aceptan `ESC t 19` (CP858) y la consulta de papel `DLE EOT`                                                                  | Equipo           | Abierta |
 
 ---
 

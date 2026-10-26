@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@warike/ui";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Cargando } from "@/components/pantalla";
@@ -25,15 +26,21 @@ const NOMBRE_ROL: Record<string, string> = {
   auditor: "Auditor",
 };
 
-// Módulos que llegan en las fases siguientes (§15), visibles según los permisos del rol.
-const MODULOS: Array<{ nombre: string; permisos: string[]; fase: string }> = [
-  { nombre: "Salón y pedidos", permisos: ["tomar_pedido"], fase: "Fase 1" },
-  { nombre: "Cocina (KDS)", permisos: ["operar_kds", "ver_listos_kds"], fase: "Fase 1" },
+// Módulos por permiso (§15): los de la fase 1 ya tienen pantalla; el resto llega después.
+const MODULOS: Array<{ nombre: string; permisos: string[]; href?: string; fase?: string }> = [
+  { nombre: "Salón y pedidos", permisos: ["tomar_pedido"], href: "/salon" },
+  { nombre: "Cocina (KDS)", permisos: ["operar_kds", "ver_listos_kds"], href: "/cocina" },
   { nombre: "Caja y comprobantes", permisos: ["cobrar_emitir", "operar_caja"], fase: "Fase 2" },
-  { nombre: "Configuración del local", permisos: ["configurar_local"], fase: "Fase 1" },
-  { nombre: "Carta y precios", permisos: ["gestionar_carta", "modificar_precios"], fase: "Fase 1" },
-  { nombre: "Usuarios y planilla", permisos: ["gestionar_usuarios"], fase: "Fase 1" },
-  { nombre: "Reportes", permisos: ["ver_reportes", "ver_reportes_sesion"], fase: "Fase 3" },
+  { nombre: "Configuración del local", permisos: ["configurar_local"], href: "/admin/plano" },
+  {
+    nombre: "Carta y precios",
+    permisos: ["gestionar_carta", "modificar_precios"],
+    href: "/admin/carta",
+  },
+  { nombre: "Menú del día", permisos: ["publicar_menu"], href: "/admin/menu" },
+  { nombre: "Usuarios y planilla", permisos: ["gestionar_usuarios"], href: "/admin/usuarios" },
+  { nombre: "Aprobaciones", permisos: ["autorizar_anulacion"], href: "/admin/aprobaciones" },
+  { nombre: "Reportes", permisos: ["ver_reportes"], href: "/admin/reportes" },
   { nombre: "Auditoría", permisos: ["ver_auditoria"], fase: "Fase 3" },
 ];
 
@@ -126,12 +133,20 @@ export default function Inicio() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-3 sm:grid-cols-2">
-              {MODULOS.filter((m) => m.permisos.some((p) => local.permisos.includes(p))).map(
-                (m) => (
+              {MODULOS.filter((m) => m.permisos.some((p) => local.permisos.includes(p))).map((m) =>
+                m.href ? (
+                  <Link
+                    key={m.nombre}
+                    href={m.href}
+                    className="rounded-md border bg-card p-4 font-medium shadow-sm transition-colors hover:bg-accent"
+                  >
+                    <span>{m.nombre}</span> <span aria-hidden="true">→</span>
+                  </Link>
+                ) : (
                   <div key={m.nombre} className="rounded-md border bg-muted/40 p-4">
                     <p className="font-medium">{m.nombre}</p>
                     <p className="text-xs text-muted-foreground">
-                      Disponible en la {m.fase.toLowerCase()}
+                      Disponible en la {m.fase!.toLowerCase()}
                     </p>
                   </div>
                 ),

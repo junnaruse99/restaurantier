@@ -1,7 +1,8 @@
 /**
  * @warike/domain — cálculos puros del negocio (§9).
  *
- * Fase 0 solo incluye los parámetros regionales. Precios, IGV, redondeo, descuentos,
- * división de cuentas y fecha operativa llegan con las fases 1–2.
+ * Fase 1: parámetros regionales y cálculos de salón (montos, fecha operativa, alertas del KDS y
+ * modificadores). IGV, descuentos y división de cuentas llegan con la fase 2.
  */
 export * from "./regional";
+export * from "./salon";

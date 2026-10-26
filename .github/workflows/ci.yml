@@ -53,15 +53,15 @@ jobs:
       - name: Levantar Supabase local (migraciones + semillas)
         run: >-
           pnpm exec supabase start
-          -x studio,imgproxy,vector,logflare,supavisor,mailpit,postgres-meta,storage-api,realtime
+          -x studio,imgproxy,vector,logflare,supavisor,mailpit,postgres-meta,storage-api
 
       - name: Lint de la base (plpgsql_check)
         run: pnpm exec supabase db lint --level warning --fail-on warning --schema public,app
 
-      - name: Pruebas pgTAP (RLS, auditoría, pin-login, semillas)
+      - name: Pruebas pgTAP (RLS, auditoría, salón, anulaciones, agente, usuarios)
         run: pnpm exec supabase test db
 
-      - name: Integración de pin-login
+      - name: Integración de las Edge Functions (pin-login, agente-login, admin-usuarios)
         run: pnpm test:integracion
 
       - name: E2E (Playwright, perfiles tablet y desktop)

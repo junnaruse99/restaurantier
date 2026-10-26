@@ -1,0 +1,23 @@
+# Servicio systemd del agente de impresión de Warike POS (docs/runbook-agente.md).
+# Copiar a /etc/systemd/system/ y crear /etc/warike/print-agent.env con las variables del agente.
+[Unit]
+Description=Warike POS - agente de impresión
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=warike
+Group=lp
+WorkingDirectory=/opt/warike/apps/print-agent
+EnvironmentFile=/etc/warike/print-agent.env
+ExecStart=/usr/bin/node node_modules/tsx/dist/cli.mjs src/index.ts
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

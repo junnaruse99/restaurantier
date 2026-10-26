@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { Notificaciones } from "@/components/notificaciones";
 import { supabase } from "@/lib/supabase";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -22,5 +23,9 @@ export function Providers({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, [clienteConsultas]);
 
-  return <QueryClientProvider client={clienteConsultas}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={clienteConsultas}>
+      <Notificaciones>{children}</Notificaciones>
+    </QueryClientProvider>
+  );
 }
