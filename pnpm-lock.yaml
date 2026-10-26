@@ -66,6 +66,9 @@ importers:
       dexie:
         specifier: ^4.4.7
         version: 4.4.7
+      konva:
+        specifier: ^9.3.22
+        version: 9.3.22
       next:
         specifier: ^15.5.28
         version: 15.5.28(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -75,6 +78,9 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.3.1(react@19.3.1)
+      react-konva:
+        specifier: ^19.3.2
+        version: 19.3.2(@types/react@19.3.0)(konva@9.3.22)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -1284,6 +1290,16 @@ packages:
     peerDependencies:
       '@types/react': ^19.3.0
 
+  '@types/react-reconciler@0.28.9':
+    resolution: {integrity: sha512-HHM3nxyUZ3zAylX8ZEyrDNd2XZOnQ0D5XfunJF5FLQnZbHHYq4UWvW1QfelQNXv1ICNkwYhfxjwfnqivYB6bFg==}
+    peerDependencies:
+      '@types/react': '*'
+
+  '@types/react-reconciler@0.34.0':
+    resolution: {integrity: sha512-zVDzX0Fk1XgDP2IutTpSrxd57jwOHlX3rlPrFz68Sc+06tpgOFRlqSUK2ZiqQeQXqnIfUb2cfJQUupXBKy498w==}
+    peerDependencies:
+      '@types/react': '*'
+
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
 
@@ -1751,6 +1767,11 @@ packages:
     resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
     engines: {node: '>=8'}
 
+  its-fine@2.1.1:
+    resolution: {integrity: sha512-C5ZoVkeqSt0Aje0tzESO+iT/EQpNFNL39GkP7mCACtoZUFD6GcyerFCr6kp0ZtiII4W9HoYkY48Soy5xE/uHKw==}
+    peerDependencies:
+      react: ^19.0.0
+
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
@@ -1792,6 +1813,9 @@ packages:
 
   kolorist@1.8.0:
     resolution: {integrity: sha512-Y+60/zizpJ3HRH8DCss+q95yr6145JXZo46OTpFvDZWLfRCE4qChOyk1b26nMaNpfHHgxagk9dXT5OP0Tfe+dQ==}
+
+  konva@9.3.22:
+    resolution: {integrity: sha512-yQI5d1bmELlD/fowuyfOp9ff+oamg26WOCkyqUyc+nczD/lhRa3EvD2MZOoc4c1293TAubW9n34fSQLgSeEgSw==}
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -2104,6 +2128,19 @@ packages:
     resolution: {integrity: sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==}
     peerDependencies:
       react: ^19.3.1
+
+  react-konva@19.3.2:
+    resolution: {integrity: sha512-Uv0xlWoRSCByHinqs/03SFL8E28fYbe59sQ+2EJpwa1O4Zlz0+T+8DaKwlma9C2rkYwYj6j8eHD41F5oJafagg==}
+    peerDependencies:
+      konva: ^8.0.1 || ^7.2.5 || ^9.0.0 || ^10.0.0
+      react: ^19.3.0
+      react-dom: ^19.3.0
+
+  react-reconciler@0.34.0:
+    resolution: {integrity: sha512-eVibvB1fc9j5Qf1KRkiM3GzRPBdjg2P6G6QV2f3P6Eb3OGMxRBhdg2rrUwjbV5JrQaJj8nOa8uajmmJA5tJWjQ==}
+    engines: {node: '>=0.10.0'}
+    peerDependencies:
+      react: ^19.3.0
 
   react-remove-scroll-bar@2.3.8:
     resolution: {integrity: sha512-9r+yi9+mgU33AKcj6IbT9oRCO78WriSj6t/cF8DWBZJ9aOGPOTEDvdUDz1FwKim7QXWwmHqtdHnRJfhAxEG46Q==}
@@ -3322,6 +3359,14 @@ snapshots:
     dependencies:
       '@types/react': 19.3.0
 
+  '@types/react-reconciler@0.28.9(@types/react@19.3.0)':
+    dependencies:
+      '@types/react': 19.3.0
+
+  '@types/react-reconciler@0.34.0(@types/react@19.3.0)':
+    dependencies:
+      '@types/react': 19.3.0
+
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
@@ -3838,6 +3883,13 @@ snapshots:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
 
+  its-fine@2.1.1(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      '@types/react-reconciler': 0.28.9(@types/react@19.3.0)
+      react: 19.3.1
+    transitivePeerDependencies:
+      - '@types/react'
+
   jiti@2.7.0: {}
 
   jose@6.2.13: {}
@@ -3865,6 +3917,8 @@ snapshots:
       json-buffer: 3.0.1
 
   kolorist@1.8.0: {}
+
+  konva@9.3.22: {}
 
   levn@0.4.1:
     dependencies:
@@ -4114,6 +4168,23 @@ snapshots:
   queue-microtask@1.2.3: {}
 
   react-dom@19.3.1(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+      scheduler: 0.28.0
+
+  react-konva@19.3.2(@types/react@19.3.0)(konva@9.3.22)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+    dependencies:
+      '@types/react-reconciler': 0.34.0(@types/react@19.3.0)
+      its-fine: 2.1.1(@types/react@19.3.0)(react@19.3.1)
+      konva: 9.3.22
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+      react-reconciler: 0.34.0(react@19.3.1)
+      scheduler: 0.28.0
+    transitivePeerDependencies:
+      - '@types/react'
+
+  react-reconciler@0.34.0(react@19.3.1):
     dependencies:
       react: 19.3.1
       scheduler: 0.28.0

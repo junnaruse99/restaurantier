@@ -142,7 +142,7 @@ export function etiquetaMesa(mesa: Pick<Mesa, "codigo" | "nombre_visible"> | und
   return mesa.nombre_visible ?? `Mesa ${mesa.codigo}`;
 }
 
-async function leer<T>(
+export async function leer<T>(
   consulta: PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>,
 ): Promise<T> {
   const { data, error } = await consulta;
