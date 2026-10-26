@@ -31,7 +31,7 @@ const MODULOS: Array<{ nombre: string; permisos: string[]; href?: string; fase?:
   { nombre: "Salón y pedidos", permisos: ["tomar_pedido"], href: "/salon" },
   { nombre: "Cocina (KDS)", permisos: ["operar_kds", "ver_listos_kds"], href: "/cocina" },
   { nombre: "Caja y comprobantes", permisos: ["cobrar_emitir", "operar_caja"], fase: "Fase 2" },
-  { nombre: "Plano y local", permisos: ["configurar_local"], href: "/admin/plano" },
+  { nombre: "Configuración del local", permisos: ["configurar_local"], href: "/admin/plano" },
   {
     nombre: "Carta y precios",
     permisos: ["gestionar_carta", "modificar_precios"],
@@ -140,7 +140,7 @@ export default function Inicio() {
                     href={m.href}
                     className="rounded-md border bg-card p-4 font-medium shadow-sm transition-colors hover:bg-accent"
                   >
-                    {m.nombre} →
+                    <span>{m.nombre}</span> <span aria-hidden="true">→</span>
                   </Link>
                 ) : (
                   <div key={m.nombre} className="rounded-md border bg-muted/40 p-4">
