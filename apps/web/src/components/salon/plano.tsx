@@ -106,9 +106,7 @@ export function Plano({
               containerType: "size",
             }}
           >
-            <span className="text-[clamp(0.8rem,32cqmin,1.6rem)] font-bold">
-              {m.codigo}
-            </span>
+            <span className="text-[clamp(0.8rem,32cqmin,1.6rem)] font-bold">{m.codigo}</span>
             {orden ? (
               <span className="text-[clamp(0.5rem,13cqmin,0.8rem)]">
                 {esPrincipal ? (
