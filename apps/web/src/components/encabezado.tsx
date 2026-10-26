@@ -15,6 +15,7 @@ interface Enlace {
 const ENLACES: Enlace[] = [
   { href: "/salon", texto: "Salón", permisos: ["tomar_pedido"] },
   { href: "/cocina", texto: "Cocina", permisos: ["operar_kds", "ver_listos_kds"] },
+  { href: "/admin/menu", texto: "Menú del día", permisos: ["publicar_menu"] },
   {
     href: "/admin",
     texto: "Administración",

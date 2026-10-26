@@ -405,15 +405,13 @@ function DialogoPiso({
               const r = await accion.ejecutar(async () => {
                 await (modo === "nuevo"
                   ? escribir(
-                      supabase()
-                        .from("pisos")
-                        .insert({
-                          local_id: op.localId,
-                          nombre: nombre.trim(),
-                          orden,
-                          ancho_canvas: ancho,
-                          alto_canvas: alto,
-                        }),
+                      supabase().from("pisos").insert({
+                        local_id: op.localId,
+                        nombre: nombre.trim(),
+                        orden,
+                        ancho_canvas: ancho,
+                        alto_canvas: alto,
+                      }),
                     )
                   : escribir(
                       supabase()
