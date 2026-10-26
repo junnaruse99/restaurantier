@@ -72,7 +72,9 @@ export function Plano({
       className="relative mx-auto w-full overflow-hidden rounded-lg border bg-muted/40"
       style={{
         aspectRatio: `${piso.ancho_canvas} / ${piso.alto_canvas}`,
-        maxWidth: altoMaximo ? `calc(${altoMaximo} * ${piso.ancho_canvas / piso.alto_canvas})` : undefined,
+        maxWidth: altoMaximo
+          ? `calc(${altoMaximo} * ${piso.ancho_canvas / piso.alto_canvas})`
+          : undefined,
       }}
       data-testid={`plano-${piso.nombre}`}
     >
@@ -104,8 +106,8 @@ export function Plano({
               containerType: "size",
             }}
           >
-            <span className="text-[clamp(0.7rem,28cqmin,1.4rem)] font-bold">
-              {m.nombre_visible ?? m.codigo}
+            <span className="text-[clamp(0.8rem,32cqmin,1.6rem)] font-bold">
+              {m.codigo}
             </span>
             {orden ? (
               <span className="text-[clamp(0.5rem,13cqmin,0.8rem)]">

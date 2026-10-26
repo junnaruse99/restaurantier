@@ -114,7 +114,9 @@ function Kds() {
   // Anulaciones de tickets que ya no están en preparación: se muestran aparte, tachadas (CU9.2).
   const anuladosAparte = visibles
     .filter((t) => !enCurso.includes(t))
-    .flatMap((t) => t.items.filter((i) => i.estado === "anulado").map((i) => ({ ticket: t, item: i })));
+    .flatMap((t) =>
+      t.items.filter((i) => i.estado === "anulado").map((i) => ({ ticket: t, item: i })),
+    );
 
   // Pitido cuando llega una comanda nueva.
   const vistos = useRef<Set<string> | null>(null);
@@ -286,11 +288,18 @@ function Kds() {
         ) : null}
         {anuladosAparte.length ? (
           <section aria-label="Anulados recientes" className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase text-red-700">Anulados (últimos 30 min)</h2>
+            <h2 className="text-sm font-semibold uppercase text-red-700">
+              Anulados (últimos 30 min)
+            </h2>
             <div className="flex flex-wrap gap-2">
               {anuladosAparte.map(({ ticket, item }) => (
-                <div key={item.id} className="rounded-md border-2 border-red-600 bg-card px-3 py-2 text-sm" data-testid="anulado-kds">
-                  <strong>{etiquetaMesa(mesaPorId.get(ticket.mesaId ?? ""))}</strong> · Comanda {ticket.numero}:{" "}
+                <div
+                  key={item.id}
+                  className="rounded-md border-2 border-red-600 bg-card px-3 py-2 text-sm"
+                  data-testid="anulado-kds"
+                >
+                  <strong>{etiquetaMesa(mesaPorId.get(ticket.mesaId ?? ""))}</strong> · Comanda{" "}
+                  {ticket.numero}:{" "}
                   <span className="text-red-700 line-through">
                     {formatoCantidad(item.cantidad)} {item.nombre_snapshot}
                   </span>
