@@ -29,7 +29,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@next/eslint-plugin-next": "^15.5.28",
+    "@next/eslint-plugin-next": "^16.4.3",
     "@playwright/test": "1.63.0",
     "@serwist/next": "^9.5.13",
     "@tailwindcss/postcss": "^4.3.3",
