@@ -26,7 +26,7 @@
     "./simulador": "./src/simulador.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.118.0",
+    "@supabase/supabase-js": "^2.119.0",
     "tsx": "^4.23.15"
   }
 }
