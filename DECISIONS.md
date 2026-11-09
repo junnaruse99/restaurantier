@@ -222,6 +222,10 @@ El total de línea, la fecha operativa, el precio vigente (con feriados como dom
 
 Para probar desde el celular sin enrolar TOTP, el proyecto de pruebas `warike-pos-pruebas` redefine `app.sesion_mfa()` a mano para aceptar cualquier sesión con contraseña. No es una migración: staging y producción siguen exigiendo MFA (§4.1). La PWA ya no decide sola si pide el TOTP: al ingresar consulta `mi_contexto.requiere_mfa`, que en producción sigue siendo verdadero para admin y auditor sin aal2.
 
+### D-042 · Carga masiva de la carta y menú del día sin postre ni bebida
+
+Pedido del cliente. En **Carta y precios** se descarga una plantilla (Excel o CSV) o la carta actual, se llena en Excel o Google Sheets y se sube. La PWA lee el archivo y la RPC `importar_carta` valida todas las filas y las aplica en una sola transacción, o ninguna. Primero se muestra una vista previa sin guardar nada. Un producto se reconoce por su código o, si no tiene, por su nombre. Las categorías que faltan se crean; las estaciones deben existir. Si el archivo cambia precios, se pide un motivo y cada cambio queda en el historial. Las celdas vacías de descripción, estación o disponible no borran lo que ya había. El formulario del menú del día deja de pedir postre y bebida; las columnas quedan en la tabla, sin uso.
+
 ---
 
 ## Preguntas abiertas

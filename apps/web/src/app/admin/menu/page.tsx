@@ -124,15 +124,11 @@ function FormularioMenu({
   const accion = useAccion([clave, ["carta", op.localId]]);
   const [entradas, setEntradas] = useState(menu?.entradas.join("\n") ?? "");
   const [segundos, setSegundos] = useState(menu?.segundos.join("\n") ?? "");
-  const [postre, setPostre] = useState(menu?.postre ?? "");
-  const [bebida, setBebida] = useState(menu?.bebida ?? "");
 
   async function guardar(publicado: boolean) {
     const fila = {
       entradas: lineas(entradas),
       segundos: lineas(segundos),
-      postre: postre.trim() || null,
-      bebida: bebida.trim() || null,
       publicado,
     };
     await accion.ejecutar(
@@ -184,14 +180,6 @@ function FormularioMenu({
             value={segundos}
             onChange={(e) => setSegundos(e.target.value)}
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="menu-postre">Postre</Label>
-          <Input id="menu-postre" value={postre} onChange={(e) => setPostre(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="menu-bebida">Bebida</Label>
-          <Input id="menu-bebida" value={bebida} onChange={(e) => setBebida(e.target.value)} />
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

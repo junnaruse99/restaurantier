@@ -57,6 +57,30 @@ test("M3: cambio de precio con motivo, historial y agotado", async ({ page }) =>
   await sinErrores(page);
 });
 
+test("M3: carga masiva de la carta desde un CSV", async ({ page }) => {
+  await entrarComoAdmin(page, "/admin/carta");
+  const sufijo = Date.now().toString(36).toUpperCase();
+  const csv = [
+    "codigo;nombre;categoria;precio;descripcion;estacion;disponible",
+    `E2E-${sufijo};Anticuchos E2E ${sufijo};Entradas;"18,50";De corazón;Parrilla;si`,
+  ].join("\r\n");
+
+  await page.getByRole("button", { name: "Cargar desde Excel o CSV" }).click();
+  const dialogo = page.getByRole("dialog");
+  await dialogo.getByLabel("Archivo (.xlsx o .csv)").setInputFiles({
+    name: "carta.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await expect(dialogo.getByTestId("vista-importacion")).toContainText("1 producto nuevo");
+  await dialogo.getByRole("button", { name: "Aplicar" }).click();
+  await expect(dialogo).toBeHidden();
+  await expect(
+    page.getByTestId("fila-producto").filter({ hasText: `Anticuchos E2E ${sufijo}` }),
+  ).toContainText("S/ 18,50");
+  await sinErrores(page);
+});
+
 test("M4: el admin crea un mozo y este entra con su código y PIN", async ({ page, browser }) => {
   const codigo = `E${Date.now().toString().slice(-6)}`;
   await entrarComoAdmin(page, "/admin/usuarios");

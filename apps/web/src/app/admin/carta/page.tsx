@@ -19,11 +19,12 @@ import {
   Textarea,
 } from "@warike/ui";
 import { useState, type FormEvent } from "react";
-import { PaginaAdmin, Tabla } from "@/components/admin/pagina-admin";
+import { descargarCsv, PaginaAdmin, Tabla } from "@/components/admin/pagina-admin";
 import { Cargando } from "@/components/pantalla";
 import { escribir } from "@/lib/datos";
 import { useEnVivo } from "@/lib/en-vivo";
 import { formatoFechaHora } from "@/lib/formato";
+import { leerTabla, parsearCsv, PLANTILLA, type LecturaCarta } from "@/lib/importar-carta";
 import { useOperador } from "@/lib/operador";
 import { rpc } from "@/lib/rpc";
 import { leer, type GrupoDeProducto, type Producto } from "@/lib/salon";
@@ -167,6 +168,7 @@ function Productos({ d }: { d: Datos }) {
   const [precio, setPrecio] = useState<ProductoAdmin | null>(null);
   const [historial, setHistorial] = useState<ProductoAdmin | null>(null);
   const [masivo, setMasivo] = useState(false);
+  const [importar, setImportar] = useState(false);
   const nombreCategoria = new Map(d.categorias.map((c) => [c.id, c.nombre]));
   const texto = busqueda.trim().toLowerCase();
   const visibles = d.productos.filter(
@@ -207,6 +209,11 @@ function Productos({ d }: { d: Datos }) {
         {precios ? (
           <Button variant="outline" onClick={() => setMasivo(true)}>
             Cambio masivo de precios
+          </Button>
+        ) : null}
+        {gestiona ? (
+          <Button variant="outline" onClick={() => setImportar(true)}>
+            Cargar desde Excel o CSV
           </Button>
         ) : null}
         {gestiona ? <Button onClick={() => setEditar("nuevo")}>Nuevo producto</Button> : null}
@@ -303,6 +310,7 @@ function Productos({ d }: { d: Datos }) {
         <DialogoHistorial producto={historial} alCerrar={() => setHistorial(null)} />
       ) : null}
       {masivo ? <DialogoMasivo d={d} alCerrar={() => setMasivo(false)} /> : null}
+      {importar ? <DialogoImportar d={d} alCerrar={() => setImportar(false)} /> : null}
     </div>
   );
 }
@@ -738,6 +746,202 @@ function DialogoMasivo({ d, alCerrar }: { d: Datos; alCerrar: () => void }) {
             }}
           >
             Aplicar {Number.isFinite(valor) && valor ? `${valor > 0 ? "+" : ""}${valor} %` : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ResumenImportacion {
+  ok: boolean;
+  errores?: Array<{ fila: number; error: string }>;
+  nuevos?: number;
+  actualizados?: number;
+  precios_cambiados?: number;
+  categorias_nuevas?: string[];
+}
+
+async function descargarExcel(
+  nombre: string,
+  filas: ReadonlyArray<ReadonlyArray<string | number>>,
+) {
+  const { default: escribirXlsx } = await import("write-excel-file/browser");
+  await escribirXlsx(
+    filas.map((f, i) =>
+      f.map((v) => ({ value: v, fontWeight: i === 0 ? ("bold" as const) : undefined })),
+    ),
+    { columns: [14, 32, 18, 10, 40, 14, 12].map((width) => ({ width })) },
+  ).toFile(nombre);
+}
+
+/** Carga masiva de la carta (DECISIONS D-042): plantilla, vista previa y aplicación en bloque. */
+function DialogoImportar({ d, alCerrar }: { d: Datos; alCerrar: () => void }) {
+  const op = useOperador();
+  const accion = useAccion([
+    ["carta_admin", op.localId],
+    ["carta", op.localId],
+  ]);
+  const [archivo, setArchivo] = useState<string | null>(null);
+  const [lectura, setLectura] = useState<LecturaCarta | null>(null);
+  const [vista, setVista] = useState<ResumenImportacion | null>(null);
+  const [motivo, setMotivo] = useState("");
+
+  const cartaActual = () => {
+    const categoria = new Map(d.categorias.map((c) => [c.id, c.nombre]));
+    const estacion = new Map(d.estaciones.map((e) => [e.id, e.nombre]));
+    return [
+      PLANTILLA[0]!,
+      ...d.productos
+        .filter((p) => p.activo && !p.es_menu_del_dia)
+        .map((p) => [
+          p.codigo ?? "",
+          p.nombre,
+          categoria.get(p.categoria_id) ?? "",
+          Number(p.precio),
+          p.descripcion ?? "",
+          p.estacion_produccion_id ? (estacion.get(p.estacion_produccion_id) ?? "") : "",
+          p.disponible ? "si" : "no",
+        ]),
+    ];
+  };
+
+  const enviar = (simular: boolean) =>
+    rpc<ResumenImportacion>("importar_carta", {
+      p_local_id: op.localId,
+      p_filas: lectura!.filas,
+      p_motivo: motivo.trim() || null,
+      p_simular: simular,
+    });
+
+  async function elegir(f: File | undefined) {
+    setLectura(null);
+    setVista(null);
+    if (!f) return;
+    setArchivo(f.name);
+    const leido = await accion.ejecutar(async () => {
+      if (/\.xlsx$/i.test(f.name)) {
+        const { readSheet } = await import("read-excel-file/browser");
+        return leerTabla(await readSheet(f));
+      }
+      if (/\.(csv|txt|tsv)$/i.test(f.name)) return leerTabla(parsearCsv(await f.text()));
+      throw new Error("Use un archivo .xlsx o .csv (en Google Sheets: Archivo → Descargar)");
+    });
+    if (!leido) return;
+    setLectura(leido);
+    if (!leido.errores.length) {
+      const r = await accion.ejecutar(() =>
+        rpc<ResumenImportacion>("importar_carta", {
+          p_local_id: op.localId,
+          p_filas: leido.filas,
+          p_motivo: null,
+          p_simular: true,
+        }),
+      );
+      if (r) setVista(r);
+    }
+  }
+
+  const errores = lectura?.errores.length ? lectura.errores : (vista?.errores ?? []);
+  const cambiaPrecios = (vista?.precios_cambiados ?? 0) > 0;
+  return (
+    <Dialog open onOpenChange={(a) => !a && alCerrar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cargar la carta desde Excel o CSV</DialogTitle>
+          <DialogDescription>
+            Descargue la plantilla, llénela en Excel o Google Sheets y súbala. Los productos con el
+            mismo código (o, sin código, el mismo nombre) se actualizan; los demás se crean. Las
+            categorías nuevas se crean solas.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void descargarExcel("plantilla-carta.xlsx", PLANTILLA)}
+          >
+            Plantilla Excel
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => descargarCsv("plantilla-carta.csv", PLANTILLA)}
+          >
+            Plantilla CSV
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void descargarExcel("carta-actual.xlsx", cartaActual())}
+          >
+            Carta actual
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Obligatorias: nombre, categoria y precio (con IGV). Opcionales: codigo, descripcion,
+          estacion ({d.estaciones.map((e) => e.nombre).join(", ") || "ninguna creada"}) y disponible
+          (si/no). En Google Sheets: Archivo → Descargar → Microsoft Excel o CSV.
+        </p>
+        <div className="space-y-1">
+          <Label htmlFor="importar-archivo">Archivo (.xlsx o .csv)</Label>
+          <Input
+            id="importar-archivo"
+            type="file"
+            accept=".xlsx,.csv,.tsv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={accion.ocupado}
+            onChange={(e) => void elegir(e.target.files?.[0])}
+          />
+        </div>
+        {errores.length ? (
+          <Alert variant="destructive">
+            <p className="font-medium">
+              {archivo} tiene {errores.length} error{errores.length === 1 ? "" : "es"}; corríjalos y
+              vuelva a subirlo:
+            </p>
+            <ul className="mt-1 max-h-40 list-disc overflow-y-auto pl-5 text-sm">
+              {errores.map((e, i) => (
+                <li key={i}>
+                  Fila {e.fila}: {e.error}
+                </li>
+              ))}
+            </ul>
+          </Alert>
+        ) : null}
+        {vista?.ok ? (
+          <Alert>
+            <p className="font-medium" data-testid="vista-importacion">
+              {vista.nuevos} producto{vista.nuevos === 1 ? "" : "s"} nuevo
+              {vista.nuevos === 1 ? "" : "s"} · {vista.actualizados} actualizado
+              {vista.actualizados === 1 ? "" : "s"}
+              {cambiaPrecios ? ` · ${vista.precios_cambiados} con precio nuevo` : ""}
+            </p>
+            {vista.categorias_nuevas?.length ? (
+              <p className="text-sm">Categorías nuevas: {vista.categorias_nuevas.join(", ")}</p>
+            ) : null}
+          </Alert>
+        ) : null}
+        {vista?.ok && cambiaPrecios ? (
+          <div className="space-y-1">
+            <Label htmlFor="importar-motivo">Motivo del cambio de precios (obligatorio)</Label>
+            <Input
+              id="importar-motivo"
+              maxLength={200}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          </div>
+        ) : null}
+        <DialogFooter>
+          <Button
+            disabled={accion.ocupado || !vista?.ok || (cambiaPrecios && motivo.trim().length < 3)}
+            onClick={async () => {
+              const r = await accion.ejecutar(() => enviar(false), "Carta cargada");
+              if (r?.ok) alCerrar();
+              else if (r) setVista(r);
+            }}
+          >
+            Aplicar
           </Button>
         </DialogFooter>
       </DialogContent>
