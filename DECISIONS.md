@@ -218,6 +218,10 @@ La CA de M1 pide ≤ 2 s (p95) con 30 dispositivos. El simulacro E2E de 5 tablet
 
 El total de línea, la fecha operativa, el precio vigente (con feriados como domingo) y la validación de modificadores están en `packages/domain` (cobertura del 100 %) para que la PWA muestre lo mismo que cobrará el servidor, y en SQL (`agregar_items`, `app.precio_vigente`, `app.fecha_operativa`), que es la autoridad. El total de la orden en la fase 1 es la suma de líneas; descuentos e IGV llegan con la caja.
 
+### D-041 · Proyecto de pruebas sin MFA
+
+Para probar desde el celular sin enrolar TOTP, el proyecto de pruebas `warike-pos-pruebas` redefine `app.sesion_mfa()` a mano para aceptar cualquier sesión con contraseña. No es una migración: staging y producción siguen exigiendo MFA (§4.1). La PWA ya no decide sola si pide el TOTP: al ingresar consulta `mi_contexto.requiere_mfa`, que en producción sigue siendo verdadero para admin y auditor sin aal2.
+
 ---
 
 ## Preguntas abiertas
