@@ -1,0 +1,146 @@
+-- Escenario de salón para las pruebas de la fase 1. Se incluye con \ir después de _helpers.psql.
+--
+--   pg_temp.crear_salon_prueba()  → locales de _helpers + mesas, estaciones, impresora, carta y personal
+--   pg_temp.id(clave)             → uuid guardado con pg_temp.guardar(clave, uuid)
+--   pg_temp.error_de(sql)         → 'PT409:mesa_ocupada' (SQLSTATE:details) o 'sin_error'
+--   pg_temp.como(clave)           → actúa como esa persona en su dispositivo (PIN) o con MFA (admin)
+--
+-- Personas en Grill Prueba (local A): admin (MFA; código ADM / PIN 7531 para autorizar), mozo,
+-- mozo2, cocina y cajero; en Urban Prueba (local B): mozo_b.
+-- Estaciones de A: Cocina (con impresora del agente) y Bar (solo KDS). Mesas A1–A4, DEL (virtual), B1.
+
+create temp table ids (k text primary key, v uuid not null);
+grant select, insert, update on ids to authenticated, service_role;
+
+create function pg_temp.guardar(p_k text, p_v uuid)
+returns uuid
+language sql
+as $$
+  insert into ids (k, v) values (p_k, p_v) on conflict (k) do update set v = excluded.v returning v
+$$;
+
+create function pg_temp.id(p_k text)
+returns uuid
+language sql
+stable
+as $$
+  select v from ids where k = p_k
+$$;
+
+create function pg_temp.error_de(p_sql text)
+returns text
+language plpgsql
+as $$
+declare
+  v_estado text;
+  v_detalle text;
+begin
+  execute p_sql;
+  return 'sin_error';
+exception when others then
+  get stacked diagnostics v_estado = returned_sqlstate, v_detalle = pg_exception_detail;
+  return v_estado || ':' || coalesce(nullif(v_detalle, ''), sqlerrm);
+end;
+$$;
+
+create function pg_temp.crear_salon_prueba()
+returns void
+language plpgsql
+as $$
+declare
+  v_a constant uuid := 'e2000000-0000-4000-8000-00000000000a';
+  v_b constant uuid := 'e2000000-0000-4000-8000-00000000000b';
+  v_piso_a constant uuid := 'e3000000-0000-4000-8000-00000000000a';
+  v_agente uuid;
+  r record;
+begin
+  perform pg_temp.crear_empresa_y_locales();
+  insert into public.mesas (piso_id, local_id, codigo, tipo) values
+    (v_piso_a, v_a, 'A3', 'mesa'), (v_piso_a, v_a, 'A4', 'mesa'), (v_piso_a, v_a, 'DEL', 'virtual_delivery');
+  for r in select id, codigo from public.mesas where local_id in (v_a, v_b) loop
+    perform pg_temp.guardar(r.codigo, r.id);
+  end loop;
+
+  -- Agente con la impresora de Cocina; Bar trabaja solo con el KDS.
+  v_agente := pg_temp.guardar('agente', pg_temp.crear_dispositivo(v_a, 'agente_impresion'));
+  insert into public.impresoras (id, local_id, nombre, tipo_conexion, host, agente_id)
+  values ('e6000000-0000-4000-8000-000000000001', v_a, 'Impresora Cocina', 'tcp', '10.0.0.5', v_agente),
+         ('e6000000-0000-4000-8000-000000000002', v_a, 'Impresora Bar', 'tcp', '10.0.0.6', null);
+  perform pg_temp.guardar('imp_cocina', 'e6000000-0000-4000-8000-000000000001');
+  perform pg_temp.guardar('imp_bar', 'e6000000-0000-4000-8000-000000000002');
+  insert into public.estaciones_produccion (id, local_id, nombre, impresora_id) values
+    ('e5000000-0000-4000-8000-000000000001', v_a, 'Cocina', 'e6000000-0000-4000-8000-000000000001'),
+    ('e5000000-0000-4000-8000-000000000002', v_a, 'Bar', null);
+  perform pg_temp.guardar('cocina_est', 'e5000000-0000-4000-8000-000000000001');
+  perform pg_temp.guardar('bar_est', 'e5000000-0000-4000-8000-000000000002');
+
+  -- Carta
+  insert into public.categorias (id, local_id, nombre, estacion_produccion_id_default) values
+    ('e9000000-0000-4000-8000-000000000001', v_a, 'Platos', 'e5000000-0000-4000-8000-000000000001'),
+    ('e9000000-0000-4000-8000-000000000002', v_a, 'Bebidas', 'e5000000-0000-4000-8000-000000000002'),
+    ('e9000000-0000-4000-8000-000000000003', v_a, 'Otros', null),
+    ('e9000000-0000-4000-8000-00000000000b', v_b, 'Platos', null);
+  insert into public.productos (id, local_id, categoria_id, codigo, nombre, precio, es_menu_del_dia) values
+    ('ea000000-0000-4000-8000-000000000001', v_a, 'e9000000-0000-4000-8000-000000000001', 'P01', 'Lomo saltado', 30.00, false),
+    ('ea000000-0000-4000-8000-000000000002', v_a, 'e9000000-0000-4000-8000-000000000002', 'B01', 'Chicha morada', 8.00, false),
+    ('ea000000-0000-4000-8000-000000000003', v_a, 'e9000000-0000-4000-8000-000000000003', 'O01', 'Bolsa', 0.50, false),
+    ('ea000000-0000-4000-8000-000000000004', v_a, 'e9000000-0000-4000-8000-000000000001', 'M01', 'Menú del día', 15.00, true),
+    ('ea000000-0000-4000-8000-00000000000b', v_b, 'e9000000-0000-4000-8000-00000000000b', 'P01', 'Lomo Urban', 32.00, false);
+  perform pg_temp.guardar('lomo', 'ea000000-0000-4000-8000-000000000001');
+  perform pg_temp.guardar('chicha', 'ea000000-0000-4000-8000-000000000002');
+  perform pg_temp.guardar('bolsa', 'ea000000-0000-4000-8000-000000000003');
+  perform pg_temp.guardar('menu', 'ea000000-0000-4000-8000-000000000004');
+  perform pg_temp.guardar('lomo_b', 'ea000000-0000-4000-8000-00000000000b');
+  insert into public.modificadores (local_id, grupo, nombre, precio_extra) values
+    (v_a, 'Término', 'Jugoso', 0), (v_a, 'Término', 'A punto', 0), (v_a, 'Extras', 'Huevo frito', 2.00);
+  insert into public.producto_modificadores (local_id, producto_id, grupo, obligatorio, min, max) values
+    (v_a, 'ea000000-0000-4000-8000-000000000001', 'Término', true, 1, 1),
+    (v_a, 'ea000000-0000-4000-8000-000000000001', 'Extras', false, 0, 2),
+    (v_a, 'ea000000-0000-4000-8000-000000000004', 'Entrada', true, 1, 1),
+    (v_a, 'ea000000-0000-4000-8000-000000000004', 'Segundo', true, 1, 1);
+
+  -- Personal
+  perform pg_temp.guardar('admin', pg_temp.crear_usuario('f1000000-0000-4000-8000-000000000001', 'admin@salon.test', 'Admin'));
+  perform pg_temp.guardar('mozo', pg_temp.crear_usuario('f1000000-0000-4000-8000-000000000002', 'mozo@salon.test', 'Mozo Uno'));
+  perform pg_temp.guardar('mozo2', pg_temp.crear_usuario('f1000000-0000-4000-8000-000000000003', 'mozo2@salon.test', 'Mozo Dos'));
+  perform pg_temp.guardar('cocina', pg_temp.crear_usuario('f1000000-0000-4000-8000-000000000004', 'cocina@salon.test', 'Cocina'));
+  perform pg_temp.guardar('cajero', pg_temp.crear_usuario('f1000000-0000-4000-8000-000000000005', 'cajero@salon.test', 'Cajero'));
+  perform pg_temp.guardar('mozo_b', pg_temp.crear_usuario('f1000000-0000-4000-8000-000000000006', 'mozo.b@salon.test', 'Mozo Urban'));
+  perform pg_temp.asignar_rol(pg_temp.id('admin'), v_a, 'admin');
+  perform pg_temp.asignar_rol(pg_temp.id('mozo'), v_a, 'mozo');
+  perform pg_temp.asignar_rol(pg_temp.id('mozo2'), v_a, 'mozo');
+  perform pg_temp.asignar_rol(pg_temp.id('cocina'), v_a, 'cocina');
+  perform pg_temp.asignar_rol(pg_temp.id('cajero'), v_a, 'cajero');
+  perform pg_temp.asignar_rol(pg_temp.id('mozo_b'), v_b, 'mozo');
+  update public.usuarios_perfil set codigo_empleado = 'ADM' where user_id = pg_temp.id('admin');
+  update public.usuarios_perfil set codigo_empleado = 'M01' where user_id = pg_temp.id('mozo');
+  insert into app.pin_credenciales (user_id, pin_hash)
+  values (pg_temp.id('admin'), extensions.crypt('7531', extensions.gen_salt('bf', 4))),
+         (pg_temp.id('mozo'), extensions.crypt('2580', extensions.gen_salt('bf', 4)));
+
+  perform pg_temp.guardar('tablet', pg_temp.crear_dispositivo(v_a, 'tablet_mozo'));
+  perform pg_temp.guardar('tablet2', pg_temp.crear_dispositivo(v_a, 'tablet_mozo'));
+  perform pg_temp.guardar('kds', pg_temp.crear_dispositivo(v_a, 'kds'));
+  perform pg_temp.guardar('caja', pg_temp.crear_dispositivo(v_a, 'caja'));
+  perform pg_temp.guardar('tablet_b', pg_temp.crear_dispositivo(v_b, 'tablet_mozo'));
+end;
+$$;
+
+-- Cambia a la sesión de una persona del escenario: PIN en su dispositivo o MFA para el admin.
+create function pg_temp.como(p_persona text)
+returns void
+language plpgsql
+as $$
+begin
+  perform pg_temp.como_postgres();
+  case p_persona
+    when 'admin' then perform pg_temp.como_mfa(pg_temp.id('admin'));
+    when 'mozo' then perform pg_temp.como_pin(pg_temp.id('mozo'), pg_temp.id('tablet'));
+    when 'mozo2' then perform pg_temp.como_pin(pg_temp.id('mozo2'), pg_temp.id('tablet2'));
+    when 'cocina' then perform pg_temp.como_pin(pg_temp.id('cocina'), pg_temp.id('kds'));
+    when 'cajero' then perform pg_temp.como_pin(pg_temp.id('cajero'), pg_temp.id('caja'));
+    when 'mozo_b' then perform pg_temp.como_pin(pg_temp.id('mozo_b'), pg_temp.id('tablet_b'));
+    else raise exception 'persona desconocida: %', p_persona;
+  end case;
+end;
+$$;

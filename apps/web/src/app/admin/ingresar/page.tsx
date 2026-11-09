@@ -33,12 +33,15 @@ function FormularioAdmin() {
       );
       return;
     }
-    // Admin y auditor siempre completan el segundo factor (TOTP) antes de ver datos (§4.1).
+    // Admin y auditor completan el segundo factor (TOTP) antes de ver datos (§4.1). Lo decide la base
+    // (mi_contexto.requiere_mfa): en el entorno de pruebas sin MFA (DECISIONS D-041) no se pide.
     const { data: nivel } = await supabase().auth.mfa.getAuthenticatorAssuranceLevel();
+    const { data: contexto } = await supabase().rpc("mi_contexto");
+    const sinSegundoFactor =
+      nivel?.currentLevel === "aal2" ||
+      (contexto as { requiere_mfa?: boolean } | null)?.requiere_mfa === false;
     router.replace(
-      nivel?.currentLevel === "aal2"
-        ? siguiente
-        : `/admin/mfa?siguiente=${encodeURIComponent(siguiente)}`,
+      sinSegundoFactor ? siguiente : `/admin/mfa?siguiente=${encodeURIComponent(siguiente)}`,
     );
   }
 
