@@ -20,7 +20,7 @@
     "@warike/ui": "workspace:*",
     "dexie": "^4.4.7",
     "konva": "^9.3.22",
-    "next": "^15.5.28",
+    "next": "^16.4.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-konva": "^19.2.7",
