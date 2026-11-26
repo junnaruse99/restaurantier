@@ -101,6 +101,8 @@ as $$
       ) x
     ), '{}'::jsonb),
     'total_cobrado', coalesce((select sum(monto) from p), 0)::numeric(12, 2),
+    -- Cobros cerrados sin comprobante (solo en modo de prueba, DECISIONS D-046).
+    'ventas_sin_comprobante', coalesce((select sum(monto) from p where comprobante_id is null), 0)::numeric(12, 2),
     'propinas', coalesce((select sum(propina) from p), 0)::numeric(12, 2),
     'vueltos', e.vueltos::numeric(12, 2),
     'comprobantes_por_tipo', coalesce((

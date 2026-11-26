@@ -2,7 +2,7 @@
 begin;
 \ir _helpers.psql
 \ir _salon.psql
-select plan(46);
+select plan(52);
 
 select pg_temp.crear_salon_prueba();
 select pg_temp.guardar('local', 'e2000000-0000-4000-8000-00000000000a');
@@ -174,6 +174,32 @@ select is((select sum(total) from public.comprobantes where orden_id = pg_temp.i
 select is((select descripcion from public.comprobante_items ci join public.comprobantes c on c.id = ci.comprobante_id
            where c.orden_id = pg_temp.id('o3') and c.parte = 2),
   'CONSUMO DE ALIMENTOS Y BEBIDAS (PARTE 2 DE 3)', 'cada parte lleva una línea de consumo');
+
+-- ---------------------------------------------------------------------------
+-- Cerrar sin comprobante: solo en modo de prueba (DECISIONS D-046)
+-- ---------------------------------------------------------------------------
+select pg_temp.guardar('o4', pg_temp.orden_con_items('A4', jsonb_build_array(
+  jsonb_build_object('producto_id', pg_temp.id('chicha'), 'cantidad', 2)
+)));
+select is(pg_temp.error_de($$ select public.cobrar_y_emitir(pg_temp.id('o4'), pg_temp.id('sesion'), '00', '{}',
+    '[{"metodo":"efectivo","monto":16}]') $$), 'PT403:modo_prueba_inactivo', 'fuera del modo de prueba siempre hay comprobante');
+select pg_temp.como_postgres();
+update public.config_local set modo_prueba = true where local_id = pg_temp.id('local');
+select pg_temp.como('cajero');
+select is(pg_temp.error_de($$ select public.cobrar_y_emitir(pg_temp.id('o4'), pg_temp.id('sesion'), '00', '{}',
+    '[{"metodo":"efectivo","monto":8}]', null, 2::smallint) $$), 'PT400:division_invalida', 'sin comprobante se cierra la cuenta completa');
+create temp table s1 as select public.cobrar_y_emitir(pg_temp.id('o4'), pg_temp.id('sesion'), '00', '{}',
+  '[{"metodo":"efectivo","monto":16,"monto_recibido":20}]') as r;
+grant select on s1 to authenticated, service_role;
+select is((select r ->> 'comprobante_id' from s1), null, 'en modo de prueba cierra la mesa sin comprobante');
+select pg_temp.como_postgres();
+select results_eq($$ select estado from public.ordenes where id = pg_temp.id('o4') $$, $$ values ('pagada') $$,
+  'la orden queda pagada');
+select results_eq($$ select monto, vuelto, comprobante_id from public.pagos where orden_id = pg_temp.id('o4') $$,
+  $$ values (16.00::numeric(12, 2), 4.00::numeric(12, 2), null::uuid) $$, 'y el pago queda registrado sin comprobante');
+select is((app.totales_sesion(pg_temp.id('sesion')) ->> 'ventas_sin_comprobante')::numeric, 16.00,
+  'los cortes muestran aparte lo cobrado sin comprobante');
+select pg_temp.como('cajero');
 
 -- ---------------------------------------------------------------------------
 -- Cola de emisión (Edge Function emitir-cpe con service_role)

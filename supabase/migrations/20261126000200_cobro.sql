@@ -8,6 +8,10 @@ alter table public.comprobantes
   add column partes smallint check (partes >= 1),
   add constraint comprobantes_parte check ((parte is null) = (partes is null) and (parte is null or parte <= partes));
 
+-- Modo de prueba del local (piloto): permite cerrar una mesa sin comprobante para no consumir
+-- documentos del emisor. Solo se activa por SQL, nunca desde la PWA (DECISIONS D-046).
+alter table public.config_local add column modo_prueba boolean not null default false;
+
 create index comprobantes_pendientes_idx on public.comprobantes (proximo_intento_at)
   where estado in ('pendiente_envio', 'enviado');
 -- Número de línea: el orden en que se envía al emisor y se imprime.
@@ -264,7 +268,8 @@ begin
   if v_sesion.local_id <> v_orden.local_id then
     perform app.fallar(409, 'sesion_de_otro_local', 'La sesión de caja es de otro local');
   end if;
-  if p_tipo_cpe not in ('01', '03') then
+  -- '00' = cerrar sin comprobante, solo en modo de prueba.
+  if p_tipo_cpe not in ('01', '03', '00') then
     perform app.fallar(400, 'tipo_cpe_invalido', 'Emita una boleta (03) o una factura (01)');
   end if;
   if p_item_ids is not null and p_partes is not null then
@@ -277,6 +282,14 @@ begin
     perform app.fallar(409, 'pago_pos_en_curso', 'Espere a que el POS apruebe, rechace o cancele el cobro');
   end if;
   select * into v_config from public.config_local where local_id = v_orden.local_id;
+  if p_tipo_cpe = '00' then
+    if not coalesce(v_config.modo_prueba, false) then
+      perform app.fallar(403, 'modo_prueba_inactivo', 'Cerrar sin comprobante solo está permitido en modo de prueba');
+    end if;
+    if p_item_ids is not null or p_partes is not null then
+      perform app.fallar(400, 'division_invalida', 'Sin comprobante se cierra la cuenta completa');
+    end if;
+  end if;
   v_tasa := app.tasa_vigente(v_orden.local_id, v_fecha);
   if v_tasa.id is null then
     perform app.fallar(500, 'sin_tasa_vigente', 'No hay una tasa de IGV vigente configurada');
@@ -347,7 +360,7 @@ begin
     if v_nombre is null then
       perform app.fallar(400, 'razon_social_requerida', 'Indique la razón social');
     end if;
-  else
+  elsif p_tipo_cpe = '03' then
     if v_tipo_doc = '6' then
       perform app.fallar(400, 'boleta_con_ruc', 'Para un RUC emita una factura');
     end if;
@@ -401,46 +414,48 @@ begin
   end if;
 
   -- Correlativo sin saltos: se reserva dentro de esta transacción (CA de M13).
-  update public.series_cpe
-  set ultimo_numero = ultimo_numero + 1
-  where id = (
-    select id from public.series_cpe
-    where local_id = v_orden.local_id and tipo_cpe = p_tipo_cpe and activa and not es_contingencia
-    order by serie limit 1
-  )
-  returning serie, ultimo_numero into v_serie, v_numero;
-  if v_serie is null then
-    perform app.fallar(500, 'sin_serie', 'No hay una serie activa para este tipo de comprobante');
-  end if;
+  if p_tipo_cpe <> '00' then
+    update public.series_cpe
+    set ultimo_numero = ultimo_numero + 1
+    where id = (
+      select id from public.series_cpe
+      where local_id = v_orden.local_id and tipo_cpe = p_tipo_cpe and activa and not es_contingencia
+      order by serie limit 1
+    )
+    returning serie, ultimo_numero into v_serie, v_numero;
+    if v_serie is null then
+      perform app.fallar(500, 'sin_serie', 'No hay una serie activa para este tipo de comprobante');
+    end if;
 
-  insert into public.comprobantes (
-    local_id, orden_id, tipo_cpe, serie, numero, fecha_emision, cliente_tipo_doc, cliente_num_doc, cliente_nombre,
-    cliente_direccion, op_gravada, igv, icbper, total, tasa_igv_aplicada, estado, proveedor, proximo_intento_at,
-    parte, partes
-  )
-  values (
-    v_orden.local_id, p_orden_id, p_tipo_cpe, v_serie, v_numero, v_fecha, v_tipo_doc, v_num_doc, upper(v_nombre),
-    v_direccion, v_op_gravada, v_igv, v_icbper, v_total, v_tasa.tasa_total, 'pendiente_envio',
-    (select proveedor_cpe from public.locales where id = v_orden.local_id), now(), v_parte, p_partes
-  )
-  returning id into v_comprobante;
-
-  for r in
-    select l.*, n::smallint as linea
-    from jsonb_array_elements(v_lineas) with ordinality as e(v, n),
-         jsonb_to_record(e.v) as l(orden_item_id uuid, descripcion text, cantidad numeric, total numeric, icbper boolean)
-  loop
-    insert into public.comprobante_items (local_id, comprobante_id, linea, orden_item_id, descripcion, cantidad,
-                                          valor_unitario, precio_unitario, igv, icbper, total)
+    insert into public.comprobantes (
+      local_id, orden_id, tipo_cpe, serie, numero, fecha_emision, cliente_tipo_doc, cliente_num_doc, cliente_nombre,
+      cliente_direccion, op_gravada, igv, icbper, total, tasa_igv_aplicada, estado, proveedor, proximo_intento_at,
+      parte, partes
+    )
     values (
-      v_orden.local_id, v_comprobante, r.linea, r.orden_item_id, r.descripcion, r.cantidad,
-      round((r.total / r.cantidad) / (1 + v_tasa.tasa_total), 6),
-      round(r.total / r.cantidad, 6),
-      r.total - round(round((r.total / r.cantidad) / (1 + v_tasa.tasa_total), 10) * r.cantidad, 2),
-      case when r.icbper then r.cantidad * v_tasa.icbper_unitario else 0 end,
-      r.total
-    );
-  end loop;
+      v_orden.local_id, p_orden_id, p_tipo_cpe, v_serie, v_numero, v_fecha, v_tipo_doc, v_num_doc, upper(v_nombre),
+      v_direccion, v_op_gravada, v_igv, v_icbper, v_total, v_tasa.tasa_total, 'pendiente_envio',
+      (select proveedor_cpe from public.locales where id = v_orden.local_id), now(), v_parte, p_partes
+    )
+    returning id into v_comprobante;
+
+    for r in
+      select l.*, n::smallint as linea
+      from jsonb_array_elements(v_lineas) with ordinality as e(v, n),
+           jsonb_to_record(e.v) as l(orden_item_id uuid, descripcion text, cantidad numeric, total numeric, icbper boolean)
+    loop
+      insert into public.comprobante_items (local_id, comprobante_id, linea, orden_item_id, descripcion, cantidad,
+                                            valor_unitario, precio_unitario, igv, icbper, total)
+      values (
+        v_orden.local_id, v_comprobante, r.linea, r.orden_item_id, r.descripcion, r.cantidad,
+        round((r.total / r.cantidad) / (1 + v_tasa.tasa_total), 6),
+        round(r.total / r.cantidad, 6),
+        r.total - round(round((r.total / r.cantidad) / (1 + v_tasa.tasa_total), 10) * r.cantidad, 2),
+        case when r.icbper then r.cantidad * v_tasa.icbper_unitario else 0 end,
+        r.total
+      );
+    end loop;
+  end if;
 
   for v_pago in select value from jsonb_array_elements(p_pagos) loop
     v_metodo := v_pago ->> 'metodo';
@@ -458,7 +473,9 @@ begin
   end loop;
 
   -- ¿Queda algo por cobrar?
-  if p_partes is not null then
+  if p_tipo_cpe = '00' then
+    v_quedan := 0;
+  elsif p_partes is not null then
     v_quedan := p_partes - v_parte;
   else
     select count(*) into v_quedan from app.items_por_cobrar(p_orden_id);

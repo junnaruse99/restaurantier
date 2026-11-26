@@ -238,6 +238,10 @@ Al dividir la cuenta en partes iguales, cada comprobante lleva una sola línea "
 
 §10.2 pide guardar la ruta y el token por local en Supabase Vault. Con un solo local, `emitir-cpe` los lee de sus secretos (`NUBEFACT_RUTA`, `NUBEFACT_TOKEN`), que tampoco salen del servidor. Pasarlos a Vault por local se hará con Warike Urban (M18). El adaptador vive en `supabase/functions/_shared/cpe` para desplegarse con la función; `packages/billing-adapter` lo reexporta para las pruebas en Node.
 
+### D-046 · Modo de prueba: cerrar una mesa sin comprobante
+
+Para el piloto, sin gastar documentos de Nubefact, `config_local.modo_prueba` permite cerrar una mesa con `cobrar_y_emitir(..., p_tipo_cpe => '00')`: registra los pagos y cierra la orden sin comprobante ni correlativo, solo por la cuenta completa. Se activa únicamente por SQL (la PWA no puede cambiarlo) y los cortes X y Z muestran aparte `ventas_sin_comprobante`. En producción va apagado: cada venta lleva su comprobante (M13, Reglamento de Comprobantes de Pago). El pedido de no emitir comprobante a quien no lo pide queda fuera de alcance.
+
 ---
 
 ## Preguntas abiertas
