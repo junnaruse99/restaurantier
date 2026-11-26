@@ -2,7 +2,7 @@
   "name": "@warike/print-agent",
   "version": "0.0.0",
   "private": true,
-  "description": "Agente local de impresión ESC/POS y relevo LAN (fase 1)",
+  "description": "Agente local de impresión ESC/POS (fase 1); el relevo LAN llega en la fase 3",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -12,11 +12,21 @@
     "start": "tsx src/index.ts",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "simulador": "tsx src/simulador-cli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
-    "tsx": "^4.23.15",
     "vitest": "^4.1.12"
+  },
+  "exports": {
+    "./agente": "./src/agente.ts",
+    "./conexion": "./src/conexion.ts",
+    "./escpos": "./src/escpos/plantillas.ts",
+    "./simulador": "./src/simulador.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "tsx": "^4.23.15"
   }
 }

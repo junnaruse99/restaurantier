@@ -13,7 +13,7 @@ Se crean con la cuenta de la organización del cliente, con MFA y al menos dos a
    - Desactive "Allow new users to sign up". Los usuarios los crea el admin.
    - Mantenga habilitado el proveedor **Email**, porque admin y auditor entran con email y contraseña.
 4. En **Authentication → Multi-Factor**: habilite **TOTP** (enroll y verify).
-5. En **Authentication → Rate Limits**: suba **Token verifications** a 300 cada 5 min. `pin-login` canjea un enlace mágico por cada ingreso con PIN y todas las verificaciones salen desde la IP de la Edge Function (DECISIONS D-002).
+5. En **Authentication → Rate Limits**: suba **Token verifications** a 300 cada 5 min. `pin-login` y `agente-login` canjean un enlace mágico por cada ingreso y todas las verificaciones salen desde la IP de la Edge Function (DECISIONS D-002, D-031).
 6. En **Authentication → URL Configuration**: ponga como Site URL la URL del frontend del entorno.
 7. Confirme que el plan incluye **pg_cron**. La migración `1100` agenda la purga de sesiones PIN vencidas.
 
@@ -74,3 +74,14 @@ Mientras la pantalla de usuarios (M4, fase 1) no existe, el primer admin se crea
    ```bash
    supabase secrets set --project-ref <ref> WARIKE_ALLOWED_ORIGINS=https://<dominio-del-frontend>
    ```
+
+## 4. Salón y cocina (fase 1)
+
+1. Las migraciones agregan las tablas de operación a la publicación `supabase_realtime`: confirme en **Database → Publications** que `mesas`, `ordenes`, `orden_items`, `comandas`, `anulaciones`, `productos`, `impresoras` y `print_jobs` aparecen.
+2. Las Edge Functions `pin-login`, `agente-login` y `admin-usuarios` se despliegan con `deploy.yml`. Ninguna necesita secretos propios: usan las variables que Supabase inyecta.
+3. Con la cuenta de admin, en el panel:
+   - registre las tablets, la caja, el KDS y el agente de impresión (**Administración → Dispositivos**);
+   - cree las impresoras y asígnelas a las estaciones (**Impresoras** y **Carta y precios → Estaciones**);
+   - cree a los mozos, cajeros y cocina con su código y PIN (**Usuarios y planilla**).
+4. Instale el agente en el mini-PC del local: [`docs/runbook-agente.md`](runbook-agente.md).
+5. Antes de operar, repita el simulacro de 5 tablets (`apps/web/e2e/simulacro.spec.ts`) en staging con `E2E_BASE_URL` y las claves del entorno.

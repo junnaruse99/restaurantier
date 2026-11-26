@@ -1,8 +1,30 @@
+import { Agente } from "./agente";
 import { leerConfig } from "./config";
+import { ServidorSupabase } from "./conexion";
 
-// Fase 0: solo el punto de entrada. La suscripción a print_jobs, las plantillas ESC/POS
-// y el relevo LAN se construyen en la fase 1 (§13 y §12.3).
+// El relevo LAN para el modo offline (§12.3) llega en la fase 3.
 const config = leerConfig();
-console.log(
-  `[print-agent] configurado para ${config.supabaseUrl}; polling cada ${config.pollingMs} ms; LAN en :${config.puertoLan}`,
-);
+const agente = new Agente(new ServidorSupabase(config), config);
+
+async function arrancar(): Promise<void> {
+  // Sin red al encender el equipo: se reintenta cada 10 s hasta poder entrar.
+  for (;;) {
+    try {
+      await agente.iniciar();
+      return;
+    } catch (e) {
+      console.error(
+        `${new Date().toISOString()} [print-agent] no se pudo iniciar: ${e instanceof Error ? e.message : e}`,
+      );
+      await new Promise((r) => setTimeout(r, 10_000));
+    }
+  }
+}
+
+for (const senal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(senal, () => {
+    void agente.detener().finally(() => process.exit(0));
+  });
+}
+
+void arrancar();

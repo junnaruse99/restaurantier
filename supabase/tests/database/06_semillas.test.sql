@@ -5,7 +5,8 @@ select plan(16);
 -- Roles y permisos (§4)
 select results_eq(
   $$ select codigo, requiere_mfa from public.roles where empresa_id is null order by codigo $$,
-  $$ values ('admin', true), ('auditor', true), ('cajero', false), ('cocina', false), ('mozo', false) $$,
+  $$ values ('admin', true), ('agente_impresion', false), ('auditor', true), ('cajero', false), ('cocina', false),
+            ('mozo', false) $$,
   'roles base; admin y auditor exigen MFA');
 select is(
   (select count(*)::int from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.codigo = 'admin'),

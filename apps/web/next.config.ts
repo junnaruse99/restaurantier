@@ -32,6 +32,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ["@warike/ui", "@warike/domain"],
+  // Konva trae una entrada para Node que pide el paquete opcional "canvas"; el editor del plano solo
+  // corre en el navegador (next/dynamic sin SSR).
+  webpack(config: { resolve: { alias: Record<string, unknown> } }) {
+    config.resolve.alias = { ...config.resolve.alias, canvas: false };
+    return config;
+  },
   async headers() {
     return [
       {
