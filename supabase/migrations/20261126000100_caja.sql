@@ -356,7 +356,6 @@ grant execute on function public.cerrar_caja(uuid, jsonb, text, boolean, uuid) t
 create or replace function public.sesion_caja_actual(p_caja_id uuid)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
