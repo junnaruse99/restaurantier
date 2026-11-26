@@ -226,24 +226,38 @@ Para probar desde el celular sin enrolar TOTP, el proyecto de pruebas `warike-po
 
 Pedido del cliente. En **Carta y precios** se descarga una plantilla (Excel o CSV) o la carta actual, se llena en Excel o Google Sheets y se sube. La PWA lee el archivo y la RPC `importar_carta` valida todas las filas y las aplica en una sola transacción, o ninguna. Primero se muestra una vista previa sin guardar nada. Un producto se reconoce por su código o, si no tiene, por su nombre. Las categorías que faltan se crean; las estaciones deben existir. Si el archivo cambia precios, se pide un motivo y cada cambio queda en el historial. Las celdas vacías de descripción, estación o disponible no borran lo que ya había. El formulario del menú del día deja de pedir postre y bebida; las columnas quedan en la tabla, sin uso.
 
+### D-043 · Caja: X sin efectivo esperado y traspaso de mesas con autorización
+
+El corte X muestra pagos, comprobantes y movimientos, pero no el efectivo esperado: si el cajero lo viera, el arqueo del Z dejaría de ser ciego (CU15.3). Cerrar el Z con mesas abiertas exige el permiso nuevo `autorizar_cierre_con_mesas` (solo admin, por PIN o en su sesión), y el Z registra cuántas mesas pasaron al siguiente turno. Las órdenes no se atan a una sesión: las cobra la sesión que esté abierta.
+
+### D-044 · Partes iguales con una línea de consumo
+
+Al dividir la cuenta en partes iguales, cada comprobante lleva una sola línea "CONSUMO DE ALIMENTOS Y BEBIDAS (PARTE i DE n)", gravada, por el monto de la parte; el residuo de céntimos va a la primera (§9). Repartir cada plato entre comprobantes daría cantidades fraccionarias difíciles de leer. Una orden se cobra por ítems o en partes iguales, no mezclando ambas. Pendiente de validar con el contador.
+
+### D-045 · Credenciales de Nubefact en los secretos de la Edge Function
+
+§10.2 pide guardar la ruta y el token por local en Supabase Vault. Con un solo local, `emitir-cpe` los lee de sus secretos (`NUBEFACT_RUTA`, `NUBEFACT_TOKEN`), que tampoco salen del servidor. Pasarlos a Vault por local se hará con Warike Urban (M18). El adaptador vive en `supabase/functions/_shared/cpe` para desplegarse con la función; `packages/billing-adapter` lo reexporta para las pruebas en Node.
+
 ---
 
 ## Preguntas abiertas
 
-| #   | Pregunta                                                                                                                                                                                        | Para             | Estado  |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------- |
-| P1  | Piso 2: ¿hay 23 o 24 mesas? ¿Existe la mesa 35 o falta otra? (sembrada la 35 desactivada)                                                                                                       | Cliente          | Abierta |
-| P2  | ¿Qué son las series 60–65 (piso 2) y 70–75 (piso 1): barra, terraza u otra zona? (sembradas como `auxiliar`)                                                                                    | Cliente          | Abierta |
-| P3  | ¿Las mesas "01" y "08" son extensiones de la 1 y la 8?                                                                                                                                          | Cliente          | Abierta |
-| P4  | ¿Warike califica para el IGV de 10,5 % en 2026? ¿Tratamiento fiscal de cortesías y del consumo de personal descontado por planilla? ¿Series definitivas? ¿Fue designado PRICO u obligado a OSE? | Contador         | Abierta |
-| P5  | Propinas: ¿se registran en el sistema? ¿Se cobran por el POS?                                                                                                                                   | Cliente          | Abierta |
-| P6  | Niubiz: modo POS integrado, credenciales y documentación con ambiente QA, tarifa, comisión de QR, cantidad de terminales y en qué cajas                                                         | Cliente / Niubiz | Abierta |
-| P7  | "Warike Urban": ¿segundo local o solo un usuario? (no sembrado; el modelo ya es multi-local)                                                                                                    | Cliente          | Abierta |
-| P8  | Confirmar en staging que Auth acepta el dominio reservado `pin.warike.invalid` para los usuarios de PIN, o definir uno propio                                                                   | Equipo           | Abierta |
-| P9  | RUC, razón social, dirección fiscal, ubigeo y dirección del local para reemplazar los valores provisionales                                                                                     | Cliente          | Abierta |
-| P10 | Feriados que se cobran como domingo (menú a S/ 18)                                                                                                                                              | Cliente          | Abierta |
-| P11 | Turnos para el reporte de ventas por mozo (CU4.3): ¿mañana/tarde/noche con qué horas? Mientras tanto, el turno es la fecha operativa                                                            | Cliente          | Abierta |
-| P12 | Modelos de las impresoras de cocina, parrilla y bar: confirmar que aceptan `ESC t 19` (CP858) y la consulta de papel `DLE EOT`                                                                  | Equipo           | Abierta |
+| #   | Pregunta                                                                                                                                                                                              | Para             | Estado  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------- |
+| P1  | Piso 2: ¿hay 23 o 24 mesas? ¿Existe la mesa 35 o falta otra? (sembrada la 35 desactivada)                                                                                                             | Cliente          | Abierta |
+| P2  | ¿Qué son las series 60–65 (piso 2) y 70–75 (piso 1): barra, terraza u otra zona? (sembradas como `auxiliar`)                                                                                          | Cliente          | Abierta |
+| P3  | ¿Las mesas "01" y "08" son extensiones de la 1 y la 8?                                                                                                                                                | Cliente          | Abierta |
+| P4  | ¿Warike califica para el IGV de 10,5 % en 2026? ¿Tratamiento fiscal de cortesías y del consumo de personal descontado por planilla? ¿Series definitivas? ¿Fue designado PRICO u obligado a OSE?       | Contador         | Abierta |
+| P5  | Propinas: ¿se registran en el sistema? ¿Se cobran por el POS?                                                                                                                                         | Cliente          | Abierta |
+| P6  | Niubiz: modo POS integrado, credenciales y documentación con ambiente QA, tarifa, comisión de QR, cantidad de terminales y en qué cajas                                                               | Cliente / Niubiz | Abierta |
+| P7  | "Warike Urban": ¿segundo local o solo un usuario? (no sembrado; el modelo ya es multi-local)                                                                                                          | Cliente          | Abierta |
+| P8  | Confirmar en staging que Auth acepta el dominio reservado `pin.warike.invalid` para los usuarios de PIN, o definir uno propio                                                                         | Equipo           | Abierta |
+| P9  | RUC, razón social, dirección fiscal, ubigeo y dirección del local para reemplazar los valores provisionales                                                                                           | Cliente          | Abierta |
+| P10 | Feriados que se cobran como domingo (menú a S/ 18)                                                                                                                                                    | Cliente          | Abierta |
+| P11 | Turnos para el reporte de ventas por mozo (CU4.3): ¿mañana/tarde/noche con qué horas? Mientras tanto, el turno es la fecha operativa                                                                  | Cliente          | Abierta |
+| P12 | Modelos de las impresoras de cocina, parrilla y bar: confirmar que aceptan `ESC t 19` (CP858) y la consulta de papel `DLE EOT`                                                                        | Equipo           | Abierta |
+| P13 | Validar en el ambiente demo de Nubefact el formato JSON que envía `NubefactEmisor` (campos, tipo de documento "-" para clientes varios, `porcentaje_de_igv` 10,5) y el código de error de "ya existe" | Equipo y cliente | Abierta |
+| P14 | Serie de las notas de crédito en Nubefact (para boletas y facturas) y si la cuenta demo usa BBB1/FFF1 como en producción                                                                              | Cliente          | Abierta |
 
 ---
 

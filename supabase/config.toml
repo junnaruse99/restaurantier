@@ -167,6 +167,10 @@ verify_jwt = false
 [functions.admin-usuarios]
 verify_jwt = false
 
+# Valida la sesión de la caja (cpe_puede_emitir) o la service_role de pg_cron.
+[functions.emitir-cpe]
+verify_jwt = false
+
 [analytics]
 enabled = false
 port = 54327
