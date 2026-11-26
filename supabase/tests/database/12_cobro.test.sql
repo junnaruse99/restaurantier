@@ -186,7 +186,8 @@ select pg_temp.como_postgres();
 set local role service_role;
 create temp table t1 as select public.cpe_tomar((select (r ->> 'comprobante_id')::uuid from b1)) as r;
 select is((select jsonb_array_length(r) from t1), 1, 'toma el comprobante pedido');
-select is((select r -> 0 -> 'items' -> 0 ->> 'descripcion' from t1), 'Lomo saltado (Jugoso)', 'con sus ítems');
+select is((select array_agg(i ->> 'descripcion' order by i ->> 'descripcion') from t1, jsonb_array_elements(r -> 0 -> 'items') i),
+  array['Bolsa', 'Chicha morada', 'Lomo saltado (Jugoso)'], 'con sus ítems');
 select is((select estado from public.comprobantes where id = (select (r ->> 'comprobante_id')::uuid from b1)), 'enviado',
   'y lo marca enviado para que nadie más lo envíe');
 select is(public.cpe_tomar((select (r ->> 'comprobante_id')::uuid from b1)), '[]'::jsonb, 'un enviado no se toma dos veces');
